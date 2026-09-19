@@ -1,0 +1,192 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   AgentShield design tokens.
+
+   One dark theme, deliberately: this is an operator console, and a single
+   well-tuned surface ramp reads more credible than a half-tuned pair. Every
+   colour below belongs to exactly one of three families and they never mix:
+
+     surface/line/fg  — structural chrome, always neutral
+     accent           — interaction only (focus, selection, primary action)
+     severity         — meaning only (security state, finding severity)
+
+   Nothing decorative gets a severity colour, and nothing severity-bearing
+   gets the accent. That separation is what keeps a dense screen readable.
+--------------------------------------------------------------------------- */
+
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", monospace;
+
+  /* Surfaces, darkest (page) to lightest (popover/hover). */
+  --color-canvas: #0a0c10;
+  --color-surface: #10131a;
+  --color-raised: #161a22;
+  --color-overlay: #1c212b;
+
+  /* Hairlines. `line` is the default border everywhere; `line-strong` is for
+     controls that need to read as interactive without a fill. */
+  --color-line: #212734;
+  --color-line-strong: #2d3546;
+
+  /* Foreground ramp. */
+  --color-fg: #e7ecf3;
+  --color-fg-muted: #98a3b4;
+  --color-fg-subtle: #68738a;
+
+  /* Interaction. */
+  --color-accent: #4d8dfd;
+  --color-accent-hover: #6ba0ff;
+  --color-accent-soft: #16233b;
+  --color-accent-line: #2b4675;
+
+  /* Severity / security state. Also used for the graph, which is why
+     `neutral` (healthy) is a real colour and not just muted foreground. */
+  --color-critical: #f2555f;
+  --color-critical-soft: #2c1418;
+  --color-high: #f5834e;
+  --color-high-soft: #2a1a12;
+  --color-warn: #e0b341;
+  --color-warn-soft: #272013;
+  --color-contained: #a273f2;
+  --color-contained-soft: #211a33;
+  --color-ok: #3fb87a;
+  --color-ok-soft: #10241b;
+  --color-neutral: #7b8698;
+  --color-neutral-soft: #1a1f28;
+
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Dense-UI type scale. 13px is the workhorse body size. */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.375rem;
+  --text-lg: 1rem;
+  --text-lg--line-height: 1.5rem;
+  --text-xl: 1.125rem;
+  --text-xl--line-height: 1.625rem;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 1.875rem;
+  --text-3xl: 1.875rem;
+  --text-3xl--line-height: 2.125rem;
+
+  --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-pop: 0 12px 32px -8px rgb(0 0 0 / 0.7), 0 0 0 1px var(--color-line);
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background: var(--color-canvas);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: var(--text-base--line-height);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Numbers in tables, metrics and logs must not jitter as they tick. */
+  :where(td, th, dd, .tabular) {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 1px;
+    border-radius: var(--radius-xs);
+  }
+
+  ::selection {
+    background: var(--color-accent-line);
+    color: var(--color-fg);
+  }
+
+  /* Scrollbars: visible enough to find, quiet enough to ignore. */
+  * {
+    scrollbar-color: var(--color-line-strong) transparent;
+    scrollbar-width: thin;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-line-strong);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: #3c465a;
+  }
+}
+
+@layer components {
+  /* The uppercase micro-label used for every section heading and column
+     header. Defined once so the letter-spacing never drifts between screens. */
+  .eyebrow {
+    font-size: var(--text-2xs);
+    line-height: var(--text-2xs--line-height);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: var(--color-fg-subtle);
+  }
+}
+
+@utility scrim-y {
+  /* Fades a scrolling list into its container instead of cutting it off. */
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 12px,
+    black calc(100% - 12px),
+    transparent 100%
+  );
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 currentColor;
+    opacity: 0.7;
+  }
+  70% {
+    box-shadow: 0 0 0 5px transparent;
+    opacity: 0;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+    opacity: 0;
+  }
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

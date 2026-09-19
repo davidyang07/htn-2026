@@ -1,0 +1,38 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+.next/
+out/
+dist/
+build/
+
+# Env
+.env
+.env.local
+.env*.local
+
+# OS / editor
+.DS_Store
+
+# Logs
+*.log
+
+# Determinism verification artifacts
+.artifacts/
+
+# Claude Code local settings
+.claude/settings.local.json
+CLAUDE.local.md
+
+# Planning docs (not authoritative — SPEC.md/BRIEF.md are)
+docs/*_PLAN.md
+
+.worktrees/

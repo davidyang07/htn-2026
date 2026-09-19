@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentnet-backend"
+version = "0.0.1"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic-settings>=2.6",
+    "asyncpg>=0.30",
+    "networkx>=3.4",
+    # Promoted from dev-only (was already pulled in transitively for
+    # FastAPI's TestClient) to a runtime dependency for VLLMProvider's async
+    # HTTP client (docs/PHASE_2_PLAN.md §3) -- the minimal async-native HTTP
+    # client option, so no new dependency family is introduced.
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.7",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

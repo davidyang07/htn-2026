@@ -1,0 +1,30 @@
+{
+  "agents": [
+    "research_agent",
+    "sentinel_agent",
+    "summarizer_agent",
+    "web_search_tool"
+  ],
+  "edges": [
+    [
+      "research_agent",
+      "web_search_tool"
+    ],
+    [
+      "sentinel_agent",
+      "summarizer_agent"
+    ],
+    [
+      "summarizer_agent",
+      "web_search_tool"
+    ]
+  ],
+  "tool_bindings": {
+    "research_agent": [
+      "web_search"
+    ]
+  },
+  "sentinel_agents": [
+    "sentinel_agent"
+  ]
+}
