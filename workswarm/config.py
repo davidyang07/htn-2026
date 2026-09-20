@@ -167,6 +167,31 @@ class RealModelsRequired(RuntimeError):
     """AGENTSHIELD_DEMO_REAL_MODELS is set but no endpoint could be resolved."""
 
 
+def enforce_real_model_mode(model: ModelConfig) -> None:
+    """Refuse a deterministic fallback when hard real-model mode is enabled."""
+    if not require_real_models() or model.configured:
+        return
+
+    config_path = workswarm_config_path()
+    raise RealModelsRequired(
+        "\n".join(
+            [
+                "AGENTSHIELD_DEMO_REAL_MODELS is set, but no model endpoint could",
+                "be resolved, so this run would have used deterministic stand-ins.",
+                "",
+                "Resolution order (first configured wins):",
+                "  1. AGENTSHIELD_MODEL_BASE_URL (+ _API_KEY / _NAME / _PROVIDER)",
+                f"  2. WorkSwarm's own config.yaml -- {config_path or 'not found'}",
+                "  3. RUNPOD_MODEL_BASE_URL",
+                "  4. OPENAI_API_KEY",
+                "",
+                "Configure one of those, or unset AGENTSHIELD_DEMO_REAL_MODELS",
+                "to run with deterministic workers.",
+            ]
+        )
+    )
+
+
 #: Fields of WorkSwarm's `model_client_config` that are ours to pass through.
 #: Everything else in that block is WorkSwarm's own bookkeeping.
 _PASSTHROUGH_CLIENT_FIELDS = ("endpoint_profile", "verify_ssl", "timeout")

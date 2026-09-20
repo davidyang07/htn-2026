@@ -32,9 +32,9 @@ from workswarm.config import (  # noqa: E402
     DEMO_TARGET,
     OBJECTIVE,
     agentshield_base_url,
+    enforce_real_model_mode,
     require_real_models,
     resolve_model,
-    workswarm_config_path,
 )
 from workswarm.flows.auth_fix_flow import WORKER_SPECS, RunContext, build_flow  # noqa: E402
 
@@ -152,25 +152,10 @@ async def _run() -> int:
     # A verification run must not quietly demonstrate something weaker than it
     # claims. With AGENTSHIELD_DEMO_REAL_MODELS set, an unresolved endpoint is
     # a hard failure rather than a silent fallback to deterministic stand-ins.
-    if require_real_models() and not model_backed:
-        config_path = workswarm_config_path()
-        raise SystemExit(
-            "\n".join(
-                [
-                    "AGENTSHIELD_DEMO_REAL_MODELS is set, but no model endpoint could",
-                    "be resolved, so this run would have used deterministic stand-ins.",
-                    "",
-                    "Resolution order (first configured wins):",
-                    "  1. AGENTSHIELD_MODEL_BASE_URL (+ _API_KEY / _NAME / _PROVIDER)",
-                    f"  2. WorkSwarm's own config.yaml -- {config_path or 'not found'}",
-                    "  3. RUNPOD_MODEL_BASE_URL",
-                    "  4. OPENAI_API_KEY",
-                    "",
-                    "Configure one of those, or unset AGENTSHIELD_DEMO_REAL_MODELS",
-                    "to run with deterministic workers.",
-                ]
-            )
-        )
+    try:
+        enforce_real_model_mode(model)
+    except RuntimeError as exc:
+        raise SystemExit(str(exc)) from exc
 
     client = AgentShieldClient(agentshield_base_url())
     _preflight(client)

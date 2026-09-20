@@ -4,7 +4,7 @@ import httpx
 import pytest
 
 from workswarm.agentshield_client import AgentShieldClient
-from workswarm.config import resolve_model
+from workswarm.config import NO_MODEL, RealModelsRequired, enforce_real_model_mode, resolve_model
 from workswarm.injection import follow_document_instructions
 from workswarm.patcher import SandboxViolation, resolve_in_sandbox
 from workswarm.verify import _summary_line, run_demo_target_tests
@@ -338,3 +338,16 @@ def test_an_explicit_endpoint_wins_and_is_reported_honestly(monkeypatch):
     # An OpenAI-compatible server with no auth still needs a non-empty key
     # from the client library.
     assert model.api_key
+
+
+def test_hard_real_model_mode_refuses_the_deterministic_fallback(monkeypatch):
+    monkeypatch.setenv("AGENTSHIELD_DEMO_REAL_MODELS", "1")
+
+    with pytest.raises(RealModelsRequired, match="deterministic stand-ins"):
+        enforce_real_model_mode(NO_MODEL)
+
+
+def test_normal_mode_still_allows_the_deterministic_fallback(monkeypatch):
+    monkeypatch.setenv("AGENTSHIELD_DEMO_REAL_MODELS", "0")
+
+    enforce_real_model_mode(NO_MODEL)
