@@ -1,183 +1,199 @@
 # AgentShield
 
-**A multi-agent adversarial resilience platform.** AgentShield models fleets of interconnected
-agents, tools/MCP servers, credentials, resources, and security controls as a typed security
-graph, runs reproducible adversarial scenarios against them, measures how far compromise spreads
-and what the defense costs, then recommends fixes and re-tests them — all in one console.
+**An immune system for agent swarms.** AgentShield detects compromised workers, quarantines them,
+and keeps the workflow alive through trusted replacement.
 
-Its design takes inspiration from immune-system-style agent defenses that use embedding-based
-behavior analysis and shared threat signatures to contain self-replicating prompt attacks —
-notably [AEGIS](https://github.com/gaiarobotics/aegis) (Agent Embedding Guard & Immune System) and
-Michael Barnathan's work on prompt worms in multi-agent spaces. AgentShield is the other half of that
-picture: the environment where such defenses can be attacked, measured, and compared.
+## The problem
 
-## The console
+Multi-agent systems create a new failure mode: one compromised worker can poison downstream agents
+and derail the entire workflow. A single poisoned document read by one worker becomes that worker's
+instructions, its output becomes the next worker's input, and the whole team fails while every
+individual agent looks like it is working correctly.
 
-One operator console organised around the assessment workflow — **Map → Attack → Observe →
-Measure → Remediate → Re-test** — with a persistent run-context bar that keeps the live WebSocket
-connected as you move between screens.
+Guardrails that filter prompts do not solve this. Containment does.
 
-| Screen | What it answers |
-|---|---|
-| **Overview** (`/`) | Configure and launch an assessment; then, how bad is it? Posture KPIs, outbreak curve, fleet split, attack surface, choke points, findings. |
-| **Topology** (`/topology`) | What can the attacker reach? The typed graph, edge-layer toggles, blast-radius focus, attack-path tracing, and a node inspector with a causal trace back to patient zero. |
-| **Activity** (`/activity`) | What just happened? Every event, filterable by attack / defense / security-plane / model, with critical events pulled out. |
-| **Metrics** (`/metrics`) | What did it cost? Every metric with the definition the backend computes it from, plus the run's provenance. |
-| **Defenses** (`/defenses`) | Did the defense help? A single-variable A/B (identical config, `defense_enabled` flipped) scored as an explicit delta. |
-| **Remediation** (`/remediation`) | What should change, and did it work? Findings as before → after config diffs, each re-testable in place. |
-| **Runs** (`/history`) | Everything ever run: a filterable table, deterministic replay, and comparison of any two persisted runs. |
+## The demo
 
-![Overview — posture KPIs, outbreak progression, workflow tracker](docs/screenshots/overview.jpg)
+A real [WorkSwarm](docs/WORKSWARM.md) team is given a real job: *find and fix the authentication
+vulnerability in this repository, add regression coverage, and verify the patch.* One worker reads a
+poisoned document. Everything after that is live — no script, no replay, no mocked results.
 
-*Overview: the workflow tracker, four posture KPIs, and the live outbreak curve.*
+| # | What happens | Evidence |
+|---|---|---|
+| 1 | **Real WorkSwarm team** — Repo Analyst, Security Researcher, Developer, Reviewer | Unmodified `workswarm==0.2.6`, authored as a SwarmFlow |
+| 2 | **Indirect prompt injection** | The Security Researcher reads `demo_target/docs/auth_notes.md`, which AgentShield legitimately released to it |
+| 3 | **Model-generated protected-resource request** | The *model's own* `requested_files` names `demo_target/secrets/demo_secret.txt` |
+| 4 | **Deterministic deny** | `TOOL_DENIED` → `POLICY_VIOLATION`, decided by code, before any read |
+| 5 | **Quarantine** | `ANOMALY_DETECTED` → `AGENT_QUARANTINED` |
+| 6 | **Tainted-output containment** | `researcher-report` is marked untrusted and excluded from every downstream worker |
+| 7 | **Replacement worker** | A fifth worker starts under `context_policy = "trusted_artifacts_only"` |
+| 8 | **Real regression RED** | A model-written regression test: `3 failed, 15 passed` against real `pytest demo_target` |
+| 9 | **Model-generated patch** | Token expiry enforced in `verify_token()` |
+| 10 | **GREEN** | `18 passed in 0.17s`, verbatim from the same subprocess |
+| 11 | **Reviewer** | An independent model review grounded in that real test output |
+| 12 | **Recovered workflow** | `AGENT_RECOVERED` → `WORKFLOW_RECOVERED`; the user never sees a failure |
 
-![Topology — typed security graph with a node inspector](docs/screenshots/topology.jpg)
+Judges watch it at **`http://localhost:3000/demo`**: a verdict strip that fills in left to right, the
+named swarm, the incident panel showing the *path* that was requested (the file was never opened),
+and the real pytest lines before and after the fix.
 
-*Topology: colour is security state, shape and size are node type. Selecting a node traces its
-compromise chain back to patient zero and lists what it can reach.*
+Steps 4–6 are one contiguous cascade. That is the moment the demo exists for.
 
-![Remediation — a finding and its validated before/after](docs/screenshots/remediation.jpg)
-
-*Remediation: each finding is a before → after config diff, and **Validate fix** runs both to
-completion and reports the per-metric delta — including when a fix makes something else worse.*
-
-Colour is reserved for security state and finding severity, never decoration; node **type** is
-carried by shape and size, so a compromised sentinel and a compromised agent stay distinguishable.
+The full runbook, the expected event sequence, the failure modes, and the procedure for proving to a
+skeptical judge that the secret never leaks are in **[`docs/DEMO.md`](docs/DEMO.md)**.
 
 ## Architecture
 
-- **`backend/`** — FastAPI over a pure, synchronous, deterministic simulation engine
-  (`app/engine/`), a security/quarantine engine (`app/security/`), an async orchestrator owning the
-  tick loop and pause/resume/speed (`app/orchestrator/`), and a normalized event stream over
-  WebSocket (`app/events/`, `app/api/ws.py`).
-- **`frontend/`** — Next.js + TypeScript. An `ExperimentProvider` above the app shell owns control
-  state and the live socket, so navigation never interrupts a run. A Sigma.js/Graphology graph is
-  the hero visual, driven entirely by a pure reducer (`src/lib/stream/reducer.ts`) that replays the
-  event stream — the frontend never simulates anything itself.
-- **`backend/app/gateway/`** — a provider-agnostic Model Gateway with per-experiment
-  timeout/retry/concurrency/budget controls, wrapping a deterministic `MockProvider` or a
-  `VLLMProvider` against any OpenAI-compatible endpoint.
-- **`backend/app/agents/`** — the Agent Runtime, where real LLM-backed agents attempt genuine
-  lateral prompt injection against a neighbor's own model call. It sits outside `app/engine/`
-  because real model calls are async I/O the engine's pure `step()` contract forbids.
-- **`docker-compose.yml`** — Postgres with a healthcheck and a named volume, so history survives
-  `down && up`. A `PostgresWriter` subscribes to the same live event stream the WebSocket does; the
-  simulation stays fully in-memory, so a DB outage affects only the durable record, never the run.
-
-## Security graph, scenarios, metrics, remediation
-
-The graph is typed — agents, tools/MCP servers, credentials, resources, and sentinels, connected by
-communication, trust, tool/resource access, credential use, monitoring, and quarantine-authority
-edges — and scenarios are pluggable via the `active_scenarios` config field.
-
-- **Scenarios** — `propagation` (probabilistic attacker), `adaptive_attacker` (deterministic
-  observe → choose → attack → adapt, switching between aggressive highest-degree and stealthy
-  lowest-degree targeting based on the observed quarantine rate), `sentinel_compromise` (a
-  subverted sentinel poisons shared threat memory and suppresses detections for everyone it
-  watches), `attestation` (stale-nonce replay), and `byzantine_collusion` (two agents jointly
-  exceed a credential scope neither could alone), plus a `false_quarantine_rate` for subverted
-  quarantine authority. Each security-plane attack defaults to a strict no-op.
-- **Analysis** — `GET /api/experiments/{id}/graph` and
-  `.../analysis/{attack-paths,blast-radius,critical-nodes,provenance}` compute reachability, blast
-  radius, choke points, and compromise provenance on demand from the live experiment.
-- **Metrics** — `.../metrics` returns compromise fraction, retained utility, blast-radius fraction,
-  privileged exposure, security-plane integrity, attack success rate, false-quarantine rate,
-  detection latency, and containment latency.
-- **Remediation** — `.../remediation` returns deterministic, rule-based recommendations (raise
-  `detector_sensitivity`, enable `defense_enabled`, raise `sentinel_count`) whenever the relevant
-  metric degrades. Re-testing one is just another experiment plus the comparison view.
-- **Export** — `.../otel-trace` emits the event log as an OTLP/JSON trace for any
-  OpenTelemetry-compatible backend.
-
-Every live endpoint has a `.../replay/...` twin that reconstructs a persisted run's exact final
-state from `(seed, config, final_sim_tick)` and mirrors the live response shape field-for-field, so
-history, comparison, and the insights sidebar work identically on past runs.
-
-## Getting started
-
-```bash
-make dev        # docker compose up --build: Postgres + backend :8000 + frontend :3000
+```
+       WorkSwarm (orchestration)  ──HTTP──▶  AgentShield (security / control plane)
+       leader, workers, handoffs,            policy, deny, taint, quarantine, replacement
+       SwarmFlow, reassignment                        │
+              │                                       ├──▶ live event stream → /demo
+              └──────────── one Sentry trace ─────────┘
 ```
 
-Or run the two halves directly:
+| Layer | Role |
+|---|---|
+| **WorkSwarm** | Orchestration. The team, the tasks, the handoffs, the recovery workflow. Installed as an external dependency and never modified — the claim is that an *external* control plane protects an *unmodified* swarm. |
+| **AgentShield** | Security / control plane. Deterministic policy evaluation, denial, anomaly, quarantine, artifact tainting, replacement authorization, and the event log that proves all of it. |
+| **Sentry** | Observability. One `agentshield.demo` trace spanning both processes, plus nine named structured logs. Optional; absent-safe. |
+| **OpenRouter** | Verified live model provider. The two full rehearsals resolved `z-ai/glm-5.3`. |
+| **RunPod / vLLM** | Optional heterogeneous replacement path for the Replacement Researcher only; falls back to the primary route. |
+| **AI explanation** | Post-hoc only. It reads an allowlisted projection of already-recorded events and can never influence an outcome. |
+
+Detail in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md); product framing in
+[`docs/PROJECT.md`](docs/PROJECT.md).
+
+## Quick start
+
+WorkSwarm needs its own virtualenv (Python <3.14, large dependency tree the backend must not
+inherit), and AgentShield runs on **8100** because WorkSwarm's own server also defaults to 8000.
 
 ```bash
-cd backend && python3 -m venv .venv && .venv/bin/pip install -e ".[dev]" && .venv/bin/uvicorn app.main:app --reload
-cd frontend && npm install && npm run dev
+# One-time
+cp .env.example .env                       # fill in only what you want
+python3.11 -m venv .venv-workswarm
+.venv-workswarm/bin/pip install workswarm==0.2.6
+
+# Point the frontend at :8100 once, instead of prefixing every dev command
+cat > frontend/.env.local <<'EOF'
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8100
+NEXT_PUBLIC_BACKEND_WS_URL=ws://localhost:8100
+EOF
 ```
 
-Open `http://localhost:3000`. Four presets (baseline propagation, undefended control,
-security-plane assault, adaptive attacker) seed a full configuration; every field is an
-`ExperimentConfig` key sent verbatim to `POST /api/experiments`, with the machine name printed
-under each label so a run stays reproducible from the UI alone. Pick your scenarios, click
-**Launch assessment**, and the run-context bar takes over with status, tick progress, and
-Pause / Resume / Re-run / speed on every screen. **Re-run** repeats config and seed exactly; the
-active run is remembered per browser tab across reloads.
-
-## History and replay
-
-Every run is persisted event by event as it happens. **Runs** (`/history`) lists them with an
-**Integrity** column marking whether each run's event log is provably complete. **Replay** opens
-`/history/[id]` — the same topology, inspector, and event log as the live view, driven entirely
-client-side from a single fetch, with play/pause/speed/scrub and reconstructed final metrics.
-Select two rows and **Compare selected** scores both on identical metrics as a delta, warning you
-when the runs differ in more than their defense setting.
-
-## Real (LLM-backed) agents
-
-`real_agent_count` designates that many of the highest-degree nodes as real, LLM-backed agents.
-Each holds a synthetic `CONFIDENTIAL_TOKEN` it is instructed never to reveal; a compromised real
-agent sends a prompt injection to a healthy real neighbor attempting to extract that token via the
-neighbor's own LLM call. Success is verified by exact string match against the known token — never
-an LLM judge. Real agents render slightly larger on the graph, and their model/tool calls flow
-through the event stream and history like any other event.
-
-`model_provider: "mock"` (the default) is a deterministic provider keyed off the same seeded RNG
-discipline as the engine, so a hybrid run is exactly as reproducible as a pure-synthetic one, with
-no GPU or network access. `model_provider: "vllm"` talks to a real Qwen — or any
-OpenAI-chat-compatible — model server:
+Three terminals from the repository root — Postgres is **not** required:
 
 ```bash
-export VLLM_BASE_URL="https://<your-endpoint>"
-export VLLM_API_KEY="<if required>"
+make demo-backend     # AgentShield backend on :8100
+make demo-frontend    # frontend on :3000  →  open http://localhost:3000/demo
+make demo-reset       # restores the vulnerable baseline, proves it green
+AGENTSHIELD_BASE_URL=http://localhost:8100 AGENTSHIELD_DEMO_REAL_MODELS=1 \
+  .venv-workswarm/bin/python workswarm/run_demo.py
 ```
 
-`POST /api/experiments` rejects `"vllm"` with a `400` before starting anything if `VLLM_BASE_URL`
-is unset, rather than silently falling back. The benchmark and golden demo take
-`--model-provider vllm` to run the same way.
+PowerShell equivalents (`.venv*/Scripts/`) are given alongside every command in
+[`docs/DEMO.md`](docs/DEMO.md) §2. `AGENTSHIELD_DEMO_REAL_MODELS=1` is non-negotiable for a
+real-model verification: with no endpoint resolved, the command exits before creating a session
+rather than silently falling back to deterministic workers.
 
-## Benchmarks and demos
+Budget **4–7 minutes** for a real-model run (measured: 3:59 and 6:05); ~2 seconds with deterministic
+workers. The exit code is `0` only when the workflow actually reached `recovered`.
+
+## Tech stack
+
+| | |
+|---|---|
+| Backend | Python 3.12, FastAPI, Uvicorn, Pydantic, WebSocket event stream, NetworkX, asyncpg/Postgres (optional) |
+| Frontend | Next.js 16, React 19, TypeScript, Tailwind v4, Sigma.js + Graphology |
+| Swarm | `workswarm==0.2.6` (`openjiuwen.core.workflow` SwarmFlow), separate Python 3.11 venv |
+| Models | OpenAI-compatible HTTP via `httpx`; OpenRouter verified, RunPod/vLLM optional |
+| Telemetry | `sentry-sdk[fastapi]`, distributed trace propagated across both processes; OTLP/JSON export |
+| Verification | pytest, ruff, vitest, eslint, `tsc --noEmit`, `next build`; Docker Compose for Postgres |
+
+Deliberately small: no message queue, no agent framework of our own, no vector database, no LLM
+judge. Sentry, OpenRouter, RunPod, and Postgres are each individually absent-safe, asserted by
+`backend/tests/test_runtime_optional_integrations.py`.
+
+## Security invariants
+
+These are the properties the demo exists to prove. Each is structural, not careful coding, and each
+is pinned by a test.
+
+1. **Protected file contents are never read before authorization.**
+   `POST /api/runtime/sessions/{id}/resource-request` evaluates policy and emits the entire deny
+   cascade *before* anything is opened, and `backend/app/runtime/resources.py` — the only code that opens a sandbox
+   file — re-evaluates the policy itself and raises `PolicyBypassError` rather than opening a
+   protected path. The secret's contents appear in no context, request, event, log, trace, API
+   response, or screen. ([`docs/DEMO.md`](docs/DEMO.md) §8 shows a judge how to grep for it.)
+2. **The LLM never decides quarantine.** No model is consulted to decide whether to deny, detect,
+   taint, or quarantine — it is deterministic, always. Models are the *subject* of enforcement, not
+   a participant in it. The AI explanation runs strictly after the decision is recorded.
+3. **Tainted output never reaches a downstream worker.** The replacement runs on trusted artifacts
+   only.
+4. **The control plane fails closed.** Unreachable AgentShield ⇒ deny, never allow; the run reports
+   `fail_closed: true` so a network blip is never mistaken for the policy.
+
+## Sponsor integrations
+
+| Sponsor | How it is used | Required? |
+|---|---|---|
+| **WorkSwarm** | The orchestration layer. A real, unmodified multi-agent workflow — the subject the control plane protects. Faked swarm activity would invalidate the entire claim. | Yes |
+| **OpenRouter** | Live model provider for all reasoning workers; verified end to end on `z-ai/glm-5.3`. | For a real-model run |
+| **Sentry** | One distributed trace across the swarm and the control plane, with `agentshield.policy_check` and `agentshield.quarantine` landing as children of the step that caused them, plus nine pinned structured log names. [`docs/streams/sentry.md`](docs/streams/sentry.md) | No — absent-safe |
+| **RunPod** | Optional heterogeneous replacement path: the Replacement Researcher can run on a RunPod vLLM endpoint, so the recovered worker need not share a provider with the compromised one. [`docs/streams/runpod.md`](docs/streams/runpod.md) | No — falls back |
+
+No sponsor credentials live in this repository, in `.env.example`, or in any commit.
+
+## The simulator console
+
+Alongside the live demo, the repository contains the deterministic simulator AgentShield grew out
+of: a typed security graph — agents, tools/MCP servers, credentials, resources, sentinels — attacked
+by pluggable, seeded scenarios and scored on containment, blast radius, and retained utility. It is
+a separate artifact from the live demo and is never conflated with it.
+
+| Screen | What it answers |
+|---|---|
+| **Overview** (`/`) | How bad is it? Posture KPIs, outbreak curve, fleet split, attack surface, choke points, findings. |
+| **Topology** (`/topology`) | What can the attacker reach? Blast-radius focus, attack-path tracing, causal trace back to patient zero. |
+| **Activity** (`/activity`) | What just happened? Every event, filterable. |
+| **Metrics** (`/metrics`) | What did it cost? Every metric with the definition the backend computes it from. |
+| **Defenses** (`/defenses`) | Did the defense help? A single-variable A/B scored as a delta. |
+| **Remediation** (`/remediation`) | What should change, and did it work? Findings as before → after config diffs, re-testable in place. |
+| **Runs** (`/history`) | Deterministic replay and comparison of any two persisted runs. |
+
+![Overview — posture KPIs, outbreak progression, workflow tracker](docs/screenshots/overview.jpg)
+
+![Topology — typed security graph with a node inspector](docs/screenshots/topology.jpg)
 
 ```bash
+make dev              # docker compose: Postgres + backend :8000 + frontend :3000
 make benchmark        # 14 attack presets + 7 defense postures + a remediation before/after
-make benchmark-audit  # the full 14 × 7 cross product plus 21 standalone presets, ranked
-make golden-demo      # one run narrating attack → adaptation → subversion → fix → re-test
-make import-demo      # imports a real LangGraph app's topology and attacks it
-make agentshield-test # CI pass/fail gate over a fast subset; --json for machine-readable output
+make golden-demo      # one simulated run narrating attack → adaptation → subversion → fix → re-test
+make verify-determinism
 ```
 
-All are seeded, reproducible, and make zero real provider calls by default. The benchmark covers
-propagation, the adaptive attacker, false quarantine, sentinel compromise, attestation replay,
-Byzantine collusion, a combined multi-vector run, real-agent lateral injection, and a 2,500-agent
-scale run that finishes in under a second. The audit sweeps 119 configurations for remediation
-opportunities, re-tests the 30 that trigger one, and ranks the measured `retained_utility`
-improvement — naming the recommendations that *worsened* a metric alongside the ones that helped.
-The golden demo leads its report with a curated 12-line "Key beats" summary above the tick-by-tick
-narrative. Reports land in `backend/.artifacts/`.
+Scenarios cover probabilistic propagation, an adaptive attacker that switches targeting strategy on
+the observed quarantine rate, sentinel compromise, attestation replay, Byzantine collusion, and
+false quarantine. Every run is seeded, event-sourced, persisted, and replayable; every live endpoint
+has a `.../replay/...` twin that reconstructs a past run's exact final state field-for-field.
 
 ## Verification
 
 ```bash
-docker compose up postgres -d
-make migrate              # also runs on app startup
-make test                 # provisions and uses a dedicated agentnet_test database
-make verify-determinism   # runs a seeded config twice headless and diffs the event projections
-make lint                 # ruff + eslint + next typegen + tsc
-make types                # regenerate frontend/src/lib/api/schema.d.ts; CI fails on drift
-cd frontend && npm test && npm run build
+make test-demo-target   # the vulnerable app's own suite: 6 green at reset
+make test-bridge        # the WorkSwarm-side bridge, with the BACKEND venv: 54 tests
+cd backend && .venv/bin/pytest          # 480 passed, 21 skipped (skips are Postgres-only)
+cd backend && .venv/bin/ruff check .
+cd frontend && npm run lint && npx next typegen && npx tsc --noEmit && npx vitest run && npm run build
 ```
 
-Persistence-integration tests (migrations, `PostgresWriter`, history endpoints, replay
-equivalence) require a reachable Postgres and skip automatically otherwise.
-`backend/tests/test_real_agent_determinism.py` proves the same determinism property for hybrid
-runs under the mock provider, driven through the real async `ExperimentRunner`.
+Frontend: 169 vitest tests, eslint clean, `tsc --noEmit` clean, `next build` clean across 13 routes.
+Persistence-integration tests require a reachable Postgres and skip automatically otherwise.
+
+---
+
+Design inspiration is acknowledged in [`docs/BRIEF.md`](docs/BRIEF.md) — notably
+[AEGIS](https://github.com/gaiarobotics/aegis) (Agent Embedding Guard & Immune System) and Michael
+Barnathan's work on prompt worms in multi-agent spaces. AgentShield's contribution is the other half
+of that picture: containment as an external control plane, provable event by event.
