@@ -387,19 +387,22 @@ simulator — this is additive and separate.
 
 ---
 
-## P0.14 — Optional OpenAI incident explanation
+## P0.14 — Optional post-hoc incident explanation
 
-**Create:** `backend/app/runtime/explain.py` — takes the *already-recorded* incident events and
-returns a developer-facing explanation.
+**Implemented:** `backend/app/explanation/` projects the *already-recorded* incident into a frozen,
+extra-forbidden evidence allowlist and returns five-part developer-facing commentary. It reuses the
+WorkSwarm/OpenRouter provider configuration when available and otherwise returns deterministic
+local text.
 
-**Modify:** `backend/app/api/routes_runtime.py` (an explanation endpoint or an async enrichment),
-`backend/app/config.py` (`openai_api_key: str | None = None`), `frontend/src/app/demo/page.tsx`
-(an explanation panel), `backend/pyproject.toml` (`openai`, or plain `httpx` — prefer `httpx`,
-already a dependency, per the smallest-dependency-set rule).
+**Endpoint:** `GET /api/runtime/sessions/{id}/explanation` returns the safe evidence, explicit
+answers to the five incident/recovery questions, a source label, provider/model identity when an
+AI wrote it, and an authority disclaimer. The provider sees the evidence JSON only. Plain `httpx`
+remains the only client dependency.
 
 **Absolute constraint:** runs strictly *after* `POLICY_VIOLATION` and `AGENT_QUARANTINED` are
-emitted. Never an input to the decision. Unconfigured or failing ⇒ the panel is empty and nothing
-else changes.
+emitted. Never an input to allow, deny, quarantine, trust, replacement, or workflow completion.
+Absent, unreachable, timed-out, HTTP-error, or malformed providers all produce the deterministic
+fallback; nothing in the core demo changes.
 
 ---
 
