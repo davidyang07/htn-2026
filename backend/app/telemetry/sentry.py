@@ -122,6 +122,8 @@ def init_sentry(settings: Settings) -> bool:
             traces_sample_rate=settings.sentry_traces_sample_rate,
             enable_logs=True,
             send_default_pii=False,
+            before_send=_before_send,
+            before_send_log=_before_send_log,
         )
     except Exception:
         logger.exception("Sentry initialization failed; continuing without it")
@@ -262,3 +264,63 @@ def _safe_value(value: Any) -> Any:
                     nested_values.append(scrubbed)
         return json.dumps(nested_values, sort_keys=True, separators=(",", ":"))
     return _DROP
+
+
+_SENSITIVE_KEYS = frozenset(
+    {
+        "api_key",
+        "apikey",
+        "authorization",
+        "body",
+        "completion",
+        "content",
+        "cookie",
+        "data",
+        "file_contents",
+        "messages",
+        "password",
+        "prompt",
+        "refresh_token",
+        "repository_contents",
+        "request_body",
+        "response_body",
+        "secret",
+        "source_code",
+    }
+)
+
+
+def _before_send(event: dict[str, Any], _hint: dict[str, Any]) -> dict[str, Any]:
+    """Last-line scrubber for SDK integrations outside our helper calls."""
+    return _scrub_payload(event)
+
+
+def _before_send_log(log: dict[str, Any], _hint: dict[str, Any]) -> dict[str, Any]:
+    scrubbed = _scrub_payload(log)
+    body = log.get("body")
+    if body in STRUCTURED_LOG_NAMES:
+        scrubbed["body"] = body
+    return scrubbed
+
+
+def _scrub_payload(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        scrubbed = {}
+        for key, item in value.items():
+            normalized = str(key).lower().replace("-", "_")
+            if _is_sensitive_key(normalized):
+                scrubbed[key] = "[Filtered]"
+            else:
+                scrubbed[key] = _scrub_payload(item)
+        return scrubbed
+    if isinstance(value, list):
+        return [_scrub_payload(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_scrub_payload(item) for item in value)
+    return value
+
+
+def _is_sensitive_key(key: str) -> bool:
+    return key in _SENSITIVE_KEYS or key.endswith(
+        ("_api_key", "_authorization", "_password", "_secret", "_token")
+    )

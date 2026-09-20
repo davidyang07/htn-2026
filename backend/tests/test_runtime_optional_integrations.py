@@ -162,6 +162,60 @@ def test_nested_telemetry_payloads_are_recursively_scrubbed(monkeypatch):
     assert "repository file" not in str(attributes).lower()
 
 
+def test_sdk_egress_scrubber_filters_nested_request_data():
+    event = {
+        "request": {
+            "headers": {
+                "Authorization": "Bearer secret",
+                "X-Api-Key": "nested-key",
+                "X-Request-ID": "run-123",
+            },
+            "data": {
+                "prompt": "full arbitrary prompt",
+                "completion": "full arbitrary completion",
+                "resource_path": PROTECTED,
+            },
+        },
+        "contexts": {
+            "agent": {
+                "worker_id": "security-researcher",
+                "content": "protected resource contents",
+            }
+        },
+    }
+
+    scrubbed = sentry._before_send(event, {})
+
+    assert scrubbed["request"]["headers"] == {
+        "Authorization": "[Filtered]",
+        "X-Api-Key": "[Filtered]",
+        "X-Request-ID": "run-123",
+    }
+    assert scrubbed["request"]["data"] == "[Filtered]"
+    assert scrubbed["contexts"]["agent"] == {
+        "worker_id": "security-researcher",
+        "content": "[Filtered]",
+    }
+
+
+def test_sdk_log_scrubber_preserves_only_known_structured_log_bodies():
+    known = sentry._before_send_log(
+        {
+            "body": "security.tool_denied",
+            "attributes": {"authorization": "Bearer secret"},
+        },
+        {},
+    )
+    arbitrary = sentry._before_send_log(
+        {"body": "full arbitrary prompt", "attributes": {"worker_id": "worker"}},
+        {},
+    )
+
+    assert known["body"] == "security.tool_denied"
+    assert known["attributes"]["authorization"] == "[Filtered]"
+    assert arbitrary["body"] == "[Filtered]"
+
+
 def test_span_startup_failure_never_interrupts_application_work(monkeypatch):
     def broken_start_span(**_kwargs):
         raise ConnectionError("transport unavailable")

@@ -84,6 +84,27 @@ def test_workflow_structured_log_names_cover_the_demo_story():
     }
 
 
+def test_workflow_sdk_egress_scrubber_filters_nested_payloads():
+    scrubbed = telemetry._before_send(
+        {
+            "request": {
+                "headers": {"Authorization": "Bearer secret"},
+                "data": {"prompt": "full prompt", "api_key": "sk-secret"},
+            },
+            "tags": {"run_id": "run-123"},
+        },
+        {},
+    )
+
+    assert scrubbed == {
+        "request": {
+            "headers": {"Authorization": "[Filtered]"},
+            "data": "[Filtered]",
+        },
+        "tags": {"run_id": "run-123"},
+    }
+
+
 def test_workflow_trace_helpers_isolate_sdk_failures(monkeypatch):
     class BrokenOnExit:
         def __enter__(self):
