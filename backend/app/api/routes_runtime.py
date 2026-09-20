@@ -120,7 +120,12 @@ async def create_session(body: SessionCreateRequest) -> RuntimeSessionSummary:
 
     session = LiveRuntimeSession(objective=body.objective)
     runtime_registry.add(session)
-    sentry.set_tags({"agentshield.session_id": str(session.session_id)})
+    sentry.set_tags(
+        {
+            "run_id": str(session.session_id),
+            "session_id": str(session.session_id),
+        }
+    )
 
     for spec in body.workers:
         await session.register_worker(
@@ -219,7 +224,10 @@ async def request_resource(session_id: UUID, body: ResourceRequest) -> ResourceD
     with sentry.span(
         "agentshield.policy_check",
         f"policy check {body.worker_id}",
+        run_id=str(session.session_id),
         worker_id=body.worker_id,
+        role=session.workers[body.worker_id].role,
+        event_type="policy_check",
         resource_path=body.resource_path,
     ):
         try:
@@ -269,11 +277,14 @@ def _log_denial(
         "security.tool_denied",
         f"Denied {body.worker_id} -> {body.resource_path}",
         session_id=str(session.session_id),
+        run_id=str(session.session_id),
         worker_id=body.worker_id,
         # The requested path only. The resource was never opened, so there is
         # nothing else that could be logged even by accident.
         resource_path=body.resource_path,
         rule=rule,
+        policy_result="deny",
+        security_state="quarantined" if quarantined else "active",
     )
     if rule == "quarantined_worker":
         return
@@ -282,26 +293,37 @@ def _log_denial(
         "security.policy_violation",
         f"Policy violation by {body.worker_id}: {reason}",
         session_id=str(session.session_id),
+        run_id=str(session.session_id),
         worker_id=body.worker_id,
         resource_path=body.resource_path,
         violation_type=rule,
+        policy_result="deny",
     )
     if quarantined:
         worker = session.workers[body.worker_id]
         with sentry.span(
             "agentshield.quarantine",
             f"quarantine {body.worker_id}",
+            run_id=str(session.session_id),
             worker_id=body.worker_id,
+            role=worker.role,
+            rule=rule,
+            security_state="quarantined",
             violation_type=rule,
         ):
             sentry.log_event(
                 "security.agent_quarantined",
                 f"Quarantined {worker.role} ({body.worker_id})",
                 session_id=str(session.session_id),
+                run_id=str(session.session_id),
                 worker_id=body.worker_id,
                 role=worker.role,
+                security_state="quarantined",
+                rule=rule,
                 violation_type=rule,
-                tainted_artifacts=[a.id for a in session.artifacts.values() if not a.trusted],
+                tainted_artifact_ids=[
+                    a.id for a in session.artifacts.values() if not a.trusted
+                ],
             )
 
 
@@ -414,10 +436,14 @@ async def reassign(session_id: UUID, body: ReassignRequest) -> RuntimeSessionSum
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     with sentry.span(
-        "task.reassignment",
+        "swarm.task_reassigned",
         f"reassign {body.from_worker_id} -> {body.to_worker.id}",
+        run_id=str(session.session_id),
         from_worker_id=body.from_worker_id,
         to_worker_id=body.to_worker.id,
+        role=body.to_worker.role,
+        replaces=body.from_worker_id,
+        replacement_worker_id=body.to_worker.id,
     ):
         await session.reassign(
             from_worker_id=body.from_worker_id,
@@ -432,16 +458,24 @@ async def reassign(session_id: UUID, body: ReassignRequest) -> RuntimeSessionSum
         "swarm.task_reassigned",
         f"Task reassigned from {body.from_worker_id} to {body.to_worker.id}",
         session_id=str(session.session_id),
+        run_id=str(session.session_id),
         from_worker_id=body.from_worker_id,
         to_worker_id=body.to_worker.id,
-        task=body.task,
+        replacement_relationship={
+            "from_worker_id": body.from_worker_id,
+            "to_worker_id": body.to_worker.id,
+        },
     )
     sentry.log_event(
         "swarm.replacement_started",
         f"{body.to_worker.role} started with trusted context only",
         session_id=str(session.session_id),
+        run_id=str(session.session_id),
         worker_id=body.to_worker.id,
         role=body.to_worker.role,
+        replaces=body.from_worker_id,
+        replacement_worker_id=body.to_worker.id,
+        security_state="active",
         context_artifact_ids=body.context_artifact_ids,
     )
     return _summary(session)

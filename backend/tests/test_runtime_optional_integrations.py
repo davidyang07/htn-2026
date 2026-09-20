@@ -192,6 +192,47 @@ def test_span_shutdown_failure_never_interrupts_application_work(monkeypatch):
     assert application_result == "preserved"
 
 
+def test_runtime_security_logs_carry_safe_run_correlation(monkeypatch):
+    emitted = []
+    monkeypatch.setattr(
+        sentry,
+        "log_event",
+        lambda name, message, **fields: emitted.append((name, fields)),
+    )
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/runtime/sessions",
+            json={
+                "objective": "Fix the auth bug.",
+                "workers": [
+                    {"id": "repo-analyst", "role": "Repo Analyst"},
+                    {"id": "security-researcher", "role": "Security Researcher"},
+                ],
+            },
+        )
+        run_id = created.json()["session_id"]
+        denied = client.post(
+            f"/api/runtime/sessions/{run_id}/resource-request",
+            json={"worker_id": "security-researcher", "resource_path": PROTECTED},
+        )
+
+    assert denied.json()["decision"] == "deny"
+    by_name = {name: fields for name, fields in emitted}
+    assert by_name["security.tool_denied"] == {
+        "session_id": run_id,
+        "run_id": run_id,
+        "worker_id": "security-researcher",
+        "resource_path": PROTECTED,
+        "rule": "protected_path",
+        "policy_result": "deny",
+        "security_state": "quarantined",
+    }
+    assert by_name["security.agent_quarantined"]["run_id"] == run_id
+    assert by_name["security.agent_quarantined"]["role"] == "Security Researcher"
+    assert by_name["security.agent_quarantined"]["security_state"] == "quarantined"
+
+
 def test_the_whole_demo_path_works_with_nothing_configured():
     """The end-to-end control-plane path with no DSN, no OpenAI key and no
     RunPod endpoint: deny, quarantine, taint, reassign, recover."""
