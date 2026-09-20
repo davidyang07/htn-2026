@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { EventFeed } from "@/components/activity/EventFeed";
+import { AttackBanner } from "@/components/demo/AttackBanner";
 import { IncidentStage } from "@/components/demo/IncidentStage";
 import { RunHeader } from "@/components/demo/RunHeader";
 import { Section } from "@/components/demo/Section";
@@ -21,6 +22,7 @@ import {
 } from "@/lib/runtime/client";
 import { runWindow } from "@/lib/runtime/clock";
 import { deriveProvenance } from "@/lib/runtime/provenance";
+import { deriveIncident } from "@/lib/runtime/incident";
 import { buildStage } from "@/lib/runtime/stage";
 import { useRuntimeStream } from "@/lib/runtime/useRuntimeStream";
 import { deriveVerdict, verdictLights, type VerdictLight } from "@/lib/runtime/verdict";
@@ -83,6 +85,7 @@ export default function DemoPage() {
   const verdict = useMemo(() => deriveVerdict(liveEvents), [liveEvents]);
   const lights = useMemo(() => verdictLights(verdict), [verdict]);
   const provenance = useMemo(() => deriveProvenance(liveEvents), [liveEvents]);
+  const incident = useMemo(() => deriveIncident(liveEvents), [liveEvents]);
   const clock = useMemo(() => runWindow(liveEvents), [liveEvents]);
 
   // The explanation is post-hoc commentary on an already-recorded decision, so
@@ -160,8 +163,10 @@ export default function DemoPage() {
               <Section
                 step="03"
                 title="The incident"
-                description="Recorded deterministically, before anything was read."
+                description="What AgentShield blocked, and what it did next."
               >
+                <AttackBanner incident={incident} />
+
                 <div className="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                   <IncidentPanel
                     verdict={verdict}
