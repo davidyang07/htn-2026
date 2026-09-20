@@ -150,10 +150,32 @@ def span(op: str, name: str, **data: Any) -> Iterator[None]:
         yield
         return
 
-    with sentry_sdk.start_span(op=op, name=name) as current:
-        for key, value in _safe_fields(data).items():
-            current.set_data(key, value)
+    try:
+        span_context = sentry_sdk.start_span(op=op, name=name)
+        current = span_context.__enter__()
+    except Exception:
+        logger.debug("Sentry span startup failed for %s", name, exc_info=True)
         yield
+        return
+
+    try:
+        for key, value in _safe_fields(data).items():
+            try:
+                current.set_data(key, value)
+            except Exception:
+                logger.debug("Sentry span metadata failed for %s", name, exc_info=True)
+        yield
+    except BaseException as error:
+        try:
+            span_context.__exit__(type(error), error, error.__traceback__)
+        except Exception:
+            logger.debug("Sentry span shutdown failed for %s", name, exc_info=True)
+        raise
+    else:
+        try:
+            span_context.__exit__(None, None, None)
+        except Exception:
+            logger.debug("Sentry span shutdown failed for %s", name, exc_info=True)
 
 
 def log_event(name: str, message: str, **fields: Any) -> None:

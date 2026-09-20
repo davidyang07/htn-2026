@@ -160,6 +160,38 @@ def test_nested_telemetry_payloads_are_recursively_scrubbed(monkeypatch):
     assert "prompt" not in str(attributes).lower()
     assert "repository file" not in str(attributes).lower()
 
+
+def test_span_startup_failure_never_interrupts_application_work(monkeypatch):
+    def broken_start_span(**_kwargs):
+        raise ConnectionError("transport unavailable")
+
+    monkeypatch.setattr(sentry, "_enabled", True)
+    monkeypatch.setattr("sentry_sdk.start_span", broken_start_span)
+    application_work_ran = False
+
+    with sentry.span("agentshield.policy_check", "policy check"):
+        application_work_ran = True
+
+    assert application_work_ran is True
+
+
+def test_span_shutdown_failure_never_interrupts_application_work(monkeypatch):
+    class BrokenOnExit:
+        def __enter__(self):
+            return Mock()
+
+        def __exit__(self, *_exc_info):
+            raise ConnectionError("transport unavailable")
+
+    monkeypatch.setattr(sentry, "_enabled", True)
+    monkeypatch.setattr("sentry_sdk.start_span", lambda **_kwargs: BrokenOnExit())
+
+    with sentry.span("agentshield.quarantine", "quarantine"):
+        application_result = "preserved"
+
+    assert application_result == "preserved"
+
+
 def test_the_whole_demo_path_works_with_nothing_configured():
     """The end-to-end control-plane path with no DSN, no OpenAI key and no
     RunPod endpoint: deny, quarantine, taint, reassign, recover."""
