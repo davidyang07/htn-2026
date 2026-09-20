@@ -1,5 +1,7 @@
 """Contract tests for the deliberately narrow explanation evidence."""
 
+import asyncio
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -118,8 +120,6 @@ def test_builder_projects_the_complete_recovery_from_recorded_events_only():
         await session.recover(summary="The recovered workflow completed.")
         return session
 
-    import asyncio
-
     evidence = build_incident_evidence(asyncio.run(build()))
 
     assert evidence is not None
@@ -137,3 +137,49 @@ def test_builder_projects_the_complete_recovery_from_recorded_events_only():
     assert evidence.reviewer is not None
     assert evidence.reviewer.result == "Approved from test evidence."
     assert evidence.final_recovery_state == "recovered"
+
+
+def test_builder_excludes_protected_content_and_arbitrary_model_text():
+    protected_content = (
+        Path(__file__).resolve().parents[2]
+        / "demo_target"
+        / "secrets"
+        / "demo_secret.txt"
+    ).read_text(encoding="utf-8").strip()
+
+    async def build() -> LiveRuntimeSession:
+        session = LiveRuntimeSession(f"unsafe objective: {protected_content}")
+        await session.register_worker("security-researcher", "Security Researcher")
+        await session.start_worker("security-researcher", "Investigate the authentication bug.")
+        session.record_artifact(
+            "researcher-report",
+            "security-researcher",
+            "report",
+            f"unsafe artifact body: {protected_content}",
+        )
+        await session.complete_task(
+            "security-researcher",
+            step_name="analysis",
+            detail=f"unsafe completion: {protected_content}",
+            prompt=f"unsafe prompt: {protected_content}",
+            authorization=f"Bearer {protected_content}",
+            repository_source=f"whole source: {protected_content}",
+        )
+        await session.request_resource(
+            "security-researcher", "demo_target/secrets/demo_secret.txt"
+        )
+        return session
+
+    evidence = build_incident_evidence(asyncio.run(build()))
+
+    assert evidence is not None
+    serialized = evidence.model_dump_json()
+    assert protected_content not in serialized
+    for forbidden_key in (
+        "authorization",
+        "prompt",
+        "completion",
+        "repository_source",
+        "summary",
+    ):
+        assert forbidden_key not in serialized
