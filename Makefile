@@ -1,4 +1,4 @@
-.PHONY: dev test test-bridge test-demo-target lint types verify-determinism migrate benchmark benchmark-audit golden-demo import-demo agentshield-test demo-backend demo-frontend demo-run demo-reset
+.PHONY: dev test test-bridge test-demo-target lint types verify-determinism migrate benchmark benchmark-audit golden-demo import-demo agentshield-test demo-backend demo-frontend demo-run demo-reset runpod-check
 
 dev:
 	docker compose up --build
@@ -55,6 +55,13 @@ demo-run:
 # Between runs: restores the vulnerable baseline and clears live sessions.
 demo-reset:
 	AGENTSHIELD_BASE_URL=http://localhost:$(AGENTSHIELD_PORT) .venv-workswarm/bin/python workswarm/reset_demo.py
+
+# Verify the optional replacement-only RunPod endpoint. Add
+# RUNPOD_CHECK_WAIT_SECONDS=600 immediately after starting a stopped pod to
+# measure cold startup; the default performs one immediate verification.
+RUNPOD_CHECK_WAIT_SECONDS ?= 0
+runpod-check:
+	backend/.venv/bin/python -m workswarm.check_runpod --wait-seconds $(RUNPOD_CHECK_WAIT_SECONDS)
 
 # The WorkSwarm-side bridge tests. Deliberately runnable with the backend's
 # own venv -- they never import the WorkSwarm engine, so the security-relevant

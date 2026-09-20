@@ -249,6 +249,9 @@ class LiveRuntimeSession:
         provider: str,
         model: str,
         endpoint_host: str,
+        provider_route: str = "sponsor",
+        fallback_used: bool = False,
+        fallback_reason: str = "",
         latency_ms: int,
         prompt_chars: int,
         response_chars: int,
@@ -271,10 +274,14 @@ class LiveRuntimeSession:
             "provider": provider,
             "model": model,
             "endpoint_host": endpoint_host,
+            "provider_route": provider_route,
+            "fallback_used": fallback_used,
             "latency_ms": latency_ms,
             "prompt_chars": prompt_chars,
             "response_chars": response_chars,
         }
+        if fallback_reason:
+            metadata["fallback_reason"] = fallback_reason
         if prompt_tokens is not None:
             metadata["prompt_tokens"] = prompt_tokens
         if completion_tokens is not None:

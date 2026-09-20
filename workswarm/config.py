@@ -8,14 +8,17 @@ Model resolution order, first configured wins:
    `config.yaml`. This is the preferred path for the sponsor setup: the
    credential stays where its owner already put it, and nothing is duplicated
    into this repository, into `.env`, or into AgentShield.
-3. ``RUNPOD_MODEL_*``       -- the P1 self-hosted-Qwen story (docs/PROJECT.md §11).
-4. ``OPENAI_API_KEY``       -- plain OpenAI. Last, deliberately: that variable's
+3. ``OPENAI_API_KEY``       -- plain OpenAI. Last, deliberately: that variable's
    primary job is the *post-hoc incident explanation*, and setting it for that
    must not silently re-point the swarm's workers.
-5. nothing                  -- the workers fall back to deterministic
+4. nothing                  -- the workers fall back to deterministic
    stand-ins, and every event and the UI say so.
 
-Set ``AGENTSHIELD_DEMO_REAL_MODELS=1`` to make step 5 a hard failure: the run
+``RUNPOD_MODEL_*`` is resolved separately by ``resolve_runpod_model``. It is
+eligible only for the Replacement Researcher and can never become the default
+provider for the rest of the P0 workflow.
+
+Set ``AGENTSHIELD_DEMO_REAL_MODELS=1`` to make step 4 a hard failure: the run
 refuses to start rather than quietly demonstrating something weaker than it
 claims. Used for the model-backed verification runs.
 
@@ -319,16 +322,6 @@ def resolve_model() -> ModelConfig:
     if from_workswarm is not None:
         return from_workswarm
 
-    runpod_base = _env("RUNPOD_MODEL_BASE_URL")
-    if runpod_base:
-        return ModelConfig(
-            provider="OpenAI",
-            model_name=_env("RUNPOD_MODEL_NAME") or "qwen",
-            api_key=_env("RUNPOD_MODEL_API_KEY") or "not-required",
-            api_base=runpod_base,
-            source="RUNPOD_MODEL_*",
-        )
-
     openai_key = _env("OPENAI_API_KEY")
     if openai_key:
         return ModelConfig(
@@ -340,6 +333,26 @@ def resolve_model() -> ModelConfig:
         )
 
     return NO_MODEL
+
+
+def resolve_runpod_model() -> ModelConfig | None:
+    """Return the optional replacement-only RunPod endpoint.
+
+    Resolution is deliberately separate from ``resolve_model`` so merely
+    configuring RunPod cannot move the original workers, Developer, or
+    Reviewer away from the normal sponsor-backed P0 model.
+    """
+    _load_dotenv()
+    base = _env("RUNPOD_MODEL_BASE_URL")
+    if not base:
+        return None
+    return ModelConfig(
+        provider="OpenAI",
+        model_name=_env("RUNPOD_MODEL_NAME") or "qwen",
+        api_key=_env("RUNPOD_MODEL_API_KEY") or "not-required",
+        api_base=base,
+        source="RUNPOD_MODEL_*",
+    )
 
 
 def agentshield_base_url() -> str:

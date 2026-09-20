@@ -37,8 +37,10 @@ from workswarm.config import (  # noqa: E402
     enforce_real_model_mode,
     require_real_models,
     resolve_model,
+    resolve_runpod_model,
 )
 from workswarm.outcome import denied_worker_requests  # noqa: E402
+from workswarm.replacement_provider import select_verified_replacement  # noqa: E402
 
 if TYPE_CHECKING:
     from workswarm.flows.auth_fix_flow import RunContext
@@ -193,6 +195,11 @@ async def _run(started_at: float) -> int:
 
     client = AgentShieldClient(agentshield_base_url())
     _preflight(client)
+    replacement_resolution = select_verified_replacement(
+        sponsor=model,
+        runpod=resolve_runpod_model(),
+    )
+    replacement = replacement_resolution.selection
 
     print()
     print("  AgentShield Live Swarm Demo")
@@ -207,11 +214,24 @@ async def _run(started_at: float) -> int:
     )
     if require_real_models():
         print("  real models   : REQUIRED (AGENTSHIELD_DEMO_REAL_MODELS is set)")
+    print(f"  replacement   : {replacement.route} -- {replacement.reason}")
+    verification = replacement_resolution.verification
+    if verification and verification.first_completion and verification.warm_completion:
+        print(
+            "  RunPod latency: "
+            f"first={verification.first_completion.probe.latency_ms}ms, "
+            f"warm={verification.warm_completion.probe.latency_ms}ms"
+        )
     print(f"  telemetry     : {'Sentry enabled' if telemetry.is_enabled() else 'Sentry off'}")
     print(f"  objective     : {OBJECTIVE}")
     print()
 
-    ctx = RunContext(client=client, model=model, model_backed=model_backed)
+    ctx = RunContext(
+        client=client,
+        model=model,
+        model_backed=model_backed,
+        replacement=replacement,
+    )
 
     specs = [{**spec, "model_backed": model_backed} for spec in WORKER_SPECS]
     session = client.create_session(OBJECTIVE, specs)
@@ -269,6 +289,11 @@ def _report(result: dict, ctx: RunContext, *, elapsed_s: float) -> int:
     print(f"  model-backed      : {ctx.model_backed}")
     if ctx.model_backed:
         print(f"  model             : {ctx.model.describe()}")
+    replacement_use = ctx.replacement_use
+    if replacement_use is not None:
+        print(f"  replacement route : {replacement_use.route}")
+        print(f"  replacement model : {replacement_use.model.describe()}")
+        print(f"  fallback used     : {replacement_use.fallback_used}")
     print(f"  wall-clock        : {elapsed_s:.3f} seconds")
     print("  ---------------------------------------------------------------")
     print()

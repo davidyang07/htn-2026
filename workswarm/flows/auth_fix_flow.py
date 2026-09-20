@@ -44,6 +44,11 @@ from workswarm.config import (
 from workswarm.outcome import recovery_was_demonstrated
 from workswarm.patcher import write_in_sandbox
 from workswarm.payloads import developer_payload
+from workswarm.replacement_provider import (
+    ProviderUse,
+    ReplacementProviderSelection,
+    provider_use_from_selection,
+)
 from workswarm.telemetry import ManualSpan, log_event, span
 from workswarm.verify import run_demo_target_tests
 from workswarm.workers import (
@@ -51,6 +56,7 @@ from workswarm.workers import (
     DeterministicDeveloper,
     DeterministicResearcher,
     DeterministicReviewer,
+    FailoverWorker,
     build_llm_worker,
     extract_json,
     parse_report,
@@ -116,6 +122,7 @@ class RunContext:
     model: ModelConfig
     #: Truthfully recorded on every worker and surfaced in the UI.
     model_backed: bool
+    replacement: ReplacementProviderSelection
     analysis_span: ManualSpan = field(
         default_factory=lambda: ManualSpan("workswarm.analysis", "workswarm.analysis")
     )
@@ -130,6 +137,7 @@ class RunContext:
     researcher_requested_paths: list[str] = field(default_factory=list)
     trusted_artifact_ids: list[str] = field(default_factory=list)
     tainted_artifact_ids: list[str] = field(default_factory=list)
+    replacement_use: ProviderUse | None = None
 
     def trace_fields(self, worker_id: str | None = None, **extra: Any) -> dict[str, Any]:
         """Safe identifiers shared by every WorkSwarm span."""
@@ -146,20 +154,42 @@ class RunContext:
         return fields
 
     def record_model_call(
-        self, worker_id: str, *, latency_ms: int, prompt_chars: int, response_chars: int
+        self,
+        worker_id: str,
+        *,
+        latency_ms: int,
+        prompt_chars: int,
+        response_chars: int,
+        provider_use: ProviderUse | None = None,
     ) -> None:
         """Report a real model call, if this run is model-backed.
 
         A deterministic run records nothing, which is precisely what makes the
         presence of MODEL_REQUESTED/MODEL_RESPONDED events evidence.
         """
-        if not self.model_backed:
+        actual_use = provider_use
+        if worker_id == REPLACEMENT_RESEARCHER:
+            actual_use = provider_use or provider_use_from_selection(self.replacement)
+            self.replacement_use = actual_use
+        actual_model = actual_use.model if actual_use is not None else self.model
+        if not actual_model.configured:
             return
+        provider = (
+            "runpod/vllm"
+            if actual_use and actual_use.route == "runpod"
+            else actual_model.provider
+        )
+        route = actual_use.route if actual_use is not None else "sponsor"
+        fallback_used = actual_use.fallback_used if actual_use is not None else False
+        fallback_reason = actual_use.reason if actual_use and actual_use.fallback_used else ""
         self.client.record_model_call(
             worker_id,
-            provider=self.model.provider,
-            model=self.model.model_name,
-            endpoint_host=_endpoint_host(self.model.api_base),
+            provider=provider,
+            model=actual_model.model_name,
+            endpoint_host=_endpoint_host(actual_model.api_base),
+            provider_route=route,
+            fallback_used=fallback_used,
+            fallback_reason=fallback_reason,
             latency_ms=latency_ms,
             prompt_chars=prompt_chars,
             response_chars=response_chars,
@@ -293,6 +323,7 @@ class RunWorker(ContextComponent):
             latency_ms=latency_ms,
             prompt_chars=len(payload["document_text"]) + len(payload["task"]),
             response_chars=len(str(raw)),
+            provider_use=getattr(self.inner, "provider_use", None),
         )
         logger.info(
             "%s requested_files=%s", self.worker_id, report["requested_files"]
@@ -459,7 +490,10 @@ class ReassignAndFetch(ContextComponent):
                     "role": "Replacement Researcher",
                     "upstream": [REPO_ANALYST],
                     "replaces": SECURITY_RESEARCHER,
-                    "model_backed": self.ctx.model_backed,
+                    # The model-call endpoint flips this to true only after a
+                    # provider actually answers. Pre-registering the planned
+                    # route would lie if runtime failover reached a stand-in.
+                    "model_backed": False,
                 },
                 task=task,
                 context_artifact_ids=trusted,
@@ -929,6 +963,7 @@ def build_flow(ctx: RunContext) -> Workflow:
     """The offline-authored SwarmFlow. Structure is fixed before the run."""
     model = ctx.model
     llm = ctx.model_backed
+    replacement_model = ctx.replacement.model
 
     analyst_worker = (
         build_llm_worker(model, prompts.REPO_ANALYST, _ANALYST_USER)
@@ -940,11 +975,29 @@ def build_flow(ctx: RunContext) -> Workflow:
         if llm
         else DeterministicResearcher(SECURITY_RESEARCHER)
     )
-    replacement_worker = (
-        build_llm_worker(model, prompts.REPLACEMENT_RESEARCHER, _RESEARCHER_USER)
-        if llm
-        else DeterministicResearcher(REPLACEMENT_RESEARCHER)
-    )
+    if ctx.replacement.route == "runpod":
+        primary_replacement = build_llm_worker(
+            replacement_model, prompts.REPLACEMENT_RESEARCHER, _RESEARCHER_USER
+        )
+        fallback_replacement = (
+            build_llm_worker(model, prompts.REPLACEMENT_RESEARCHER, _RESEARCHER_USER)
+            if llm
+            else DeterministicResearcher(REPLACEMENT_RESEARCHER)
+        )
+        replacement_worker = FailoverWorker(
+            primary_replacement,
+            fallback_replacement,
+            runpod_model=replacement_model,
+            fallback_model=model,
+        )
+    else:
+        replacement_worker = (
+            build_llm_worker(
+                replacement_model, prompts.REPLACEMENT_RESEARCHER, _RESEARCHER_USER
+            )
+            if replacement_model.configured
+            else DeterministicResearcher(REPLACEMENT_RESEARCHER)
+        )
     developer_worker = (
         build_llm_worker(model, prompts.DEVELOPER, _DEVELOPER_USER)
         if llm

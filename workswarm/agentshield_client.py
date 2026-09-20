@@ -239,6 +239,9 @@ class AgentShieldClient:
         latency_ms: int,
         prompt_chars: int,
         response_chars: int,
+        provider_route: str = "sponsor",
+        fallback_used: bool = False,
+        fallback_reason: str = "",
     ) -> dict[str, Any]:
         """Record that this worker's reasoning came from a real model call.
 
@@ -252,6 +255,9 @@ class AgentShieldClient:
                 "provider": provider,
                 "model": model,
                 "endpoint_host": endpoint_host,
+                "provider_route": provider_route,
+                "fallback_used": fallback_used,
+                "fallback_reason": fallback_reason,
                 "latency_ms": latency_ms,
                 "prompt_chars": prompt_chars,
                 "response_chars": response_chars,

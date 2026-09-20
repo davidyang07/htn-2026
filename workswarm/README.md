@@ -95,6 +95,12 @@ This is surfaced, never hidden: every worker is registered with
 `model-backed` or `deterministic stand-in`, and `run_demo.py` prints which
 mode the run used.
 
+The Replacement Researcher can independently use a verified RunPod/vLLM
+endpoint. It falls back to the normal sponsor model when RunPod is missing,
+unhealthy, unreachable, or timed out, and records the provider that actually
+answered. Deployment, cost, verification, restart, and shutdown instructions
+are in [`docs/streams/runpod.md`](../docs/streams/runpod.md).
+
 ## Running it
 
 See `docs/DEMO.md` for the full runbook. The short version, from the
