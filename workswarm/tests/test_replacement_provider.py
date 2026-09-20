@@ -1,6 +1,12 @@
+import httpx
+
 import workswarm.config as model_config
-from workswarm.config import ModelConfig, NO_MODEL, resolve_model, resolve_runpod_model
-from workswarm.replacement_provider import select_replacement_provider
+from workswarm.config import NO_MODEL, ModelConfig, resolve_model, resolve_runpod_model
+from workswarm.replacement_provider import (
+    select_replacement_provider,
+    select_verified_replacement,
+)
+from workswarm.runpod_verify import RunPodVerifier
 
 
 def _model(source: str, base_url: str) -> ModelConfig:
@@ -61,3 +67,27 @@ def test_runpod_configuration_is_replacement_only(monkeypatch):
     assert runpod.api_base == "https://runpod.invalid/v1"
     assert runpod.model_name == "Qwen/Qwen2.5-Coder-7B-Instruct"
     assert runpod.source == "RUNPOD_MODEL_*"
+
+
+def test_connection_failure_falls_back_to_sponsor_without_raising():
+    sponsor = _model("sponsor", "https://sponsor.invalid/v1")
+    runpod = _model("runpod", "https://runpod.invalid/v1")
+
+    def factory(model):
+        def unavailable(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("no route", request=request)
+
+        return RunPodVerifier(
+            model, client=httpx.Client(transport=httpx.MockTransport(unavailable))
+        )
+
+    resolved = select_verified_replacement(
+        sponsor=sponsor, runpod=runpod, verifier_factory=factory
+    )
+
+    assert resolved.selection.model is sponsor
+    assert resolved.selection.route == "sponsor_fallback"
+    assert resolved.selection.fallback_used is True
+    assert "ConnectError" in resolved.selection.reason
+    assert resolved.verification is not None
+    assert resolved.verification.ready is False

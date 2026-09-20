@@ -7,9 +7,11 @@ truthful route decision.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
-from workswarm.config import ModelConfig, NO_MODEL
+from workswarm.config import NO_MODEL, ModelConfig
+from workswarm.runpod_verify import RunPodVerifier, VerificationReport
 
 
 @dataclass(frozen=True)
@@ -20,6 +22,14 @@ class ReplacementProviderSelection:
     route: str
     fallback_used: bool
     reason: str
+
+
+@dataclass(frozen=True)
+class ReplacementProviderResolution:
+    """Selection plus any RunPod evidence gathered while making it."""
+
+    selection: ReplacementProviderSelection
+    verification: VerificationReport | None
 
 
 def select_replacement_provider(
@@ -56,4 +66,63 @@ def select_replacement_provider(
         route="deterministic_fallback",
         fallback_used=True,
         reason=fallback_reason,
+    )
+
+
+def _failure_reason(report: VerificationReport) -> str:
+    probes = [report.health]
+    if report.models is not None:
+        probes.append(report.models.probe)
+    if report.first_completion is not None:
+        probes.append(report.first_completion.probe)
+    if report.warm_completion is not None:
+        probes.append(report.warm_completion.probe)
+    failed = next((probe for probe in probes if not probe.ok), report.health)
+    return f"RunPod {failed.name} check failed: {failed.detail}"
+
+
+def select_verified_replacement(
+    *,
+    sponsor: ModelConfig,
+    runpod: ModelConfig | None,
+    verifier_factory: Callable[[ModelConfig], RunPodVerifier] = RunPodVerifier,
+) -> ReplacementProviderResolution:
+    """Verify RunPod and select it only when every required check succeeds."""
+    if runpod is None or not runpod.configured:
+        return ReplacementProviderResolution(
+            selection=select_replacement_provider(
+                sponsor=sponsor,
+                runpod=runpod,
+                runpod_healthy=False,
+                reason="RunPod endpoint is not configured",
+            ),
+            verification=None,
+        )
+
+    verifier: RunPodVerifier | None = None
+    try:
+        verifier = verifier_factory(runpod)
+        report = verifier.verify()
+    except Exception as exc:
+        return ReplacementProviderResolution(
+            selection=select_replacement_provider(
+                sponsor=sponsor,
+                runpod=runpod,
+                runpod_healthy=False,
+                reason=f"RunPod verification failed ({type(exc).__name__})",
+            ),
+            verification=None,
+        )
+    finally:
+        if verifier is not None:
+            verifier.close()
+
+    return ReplacementProviderResolution(
+        selection=select_replacement_provider(
+            sponsor=sponsor,
+            runpod=runpod,
+            runpod_healthy=report.ready,
+            reason="RunPod endpoint verified" if report.ready else _failure_reason(report),
+        ),
+        verification=report,
     )
