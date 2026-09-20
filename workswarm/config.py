@@ -90,6 +90,11 @@ def to_repo_relative(requested: str) -> str:
     return SANDBOX_PREFIX + candidate.lstrip("/")
 
 
+def policy_request_paths(requested: list[str]) -> list[str]:
+    """Translate, without adding or dropping, the paths a worker requested."""
+    return [to_repo_relative(path) for path in requested]
+
+
 def _env(name: str) -> str | None:
     value = os.environ.get(name)
     if value is None:

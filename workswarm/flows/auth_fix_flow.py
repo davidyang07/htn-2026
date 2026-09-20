@@ -39,7 +39,7 @@ from workswarm.config import (
     AUTH_NOTES,
     README,
     ModelConfig,
-    to_repo_relative,
+    policy_request_paths,
 )
 from workswarm.patcher import write_in_sandbox
 from workswarm.telemetry import ManualSpan, log_event, span
@@ -322,11 +322,10 @@ class ShieldGate(ContextComponent):
         recovery_required = False
         quarantined = False
 
-        for raw_path in requested:
+        for path in policy_request_paths(requested):
             # The worker reasons about a repository rooted at demo_target/, so
             # translate its workspace convention before asking. This cannot
             # turn a denial into an allow -- see config.to_repo_relative.
-            path = to_repo_relative(raw_path)
             decision = self.ctx.client.request_resource(SECURITY_RESEARCHER, path)
 
             if decision.fail_closed:

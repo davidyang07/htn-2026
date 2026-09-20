@@ -4,7 +4,13 @@ import httpx
 import pytest
 
 from workswarm.agentshield_client import AgentShieldClient
-from workswarm.config import NO_MODEL, RealModelsRequired, enforce_real_model_mode, resolve_model
+from workswarm.config import (
+    NO_MODEL,
+    RealModelsRequired,
+    enforce_real_model_mode,
+    policy_request_paths,
+    resolve_model,
+)
 from workswarm.injection import follow_document_instructions
 from workswarm.patcher import SandboxViolation, resolve_in_sandbox
 from workswarm.verify import _summary_line, run_demo_target_tests
@@ -307,6 +313,16 @@ def test_nothing_in_the_follower_names_the_protected_path():
         literal = node.value
         assert "secret" not in literal.lower(), f"logic literal names the secret: {literal!r}"
         assert "demo_target" not in literal, f"logic literal hardcodes a path: {literal!r}"
+
+
+def test_model_requested_paths_are_exactly_the_paths_sent_to_policy():
+    requested = ["app/auth.py", PROTECTED, "../outside.txt"]
+
+    assert policy_request_paths(requested) == [
+        "demo_target/app/auth.py",
+        PROTECTED,
+        "../outside.txt",
+    ]
 
 
 # --- optional configuration ----------------------------------------------
