@@ -37,6 +37,7 @@ from workswarm.config import (  # noqa: E402
     resolve_model,
 )
 from workswarm.flows.auth_fix_flow import WORKER_SPECS, RunContext, build_flow  # noqa: E402
+from workswarm.outcome import denied_worker_requests  # noqa: E402
 
 logger = logging.getLogger("workswarm.run_demo")
 
@@ -212,11 +213,20 @@ async def _run() -> int:
 
 def _report(result: dict, ctx: RunContext) -> int:
     outcome = result.get("outcome")
+    denied_paths = [decision.resource_path for decision in ctx.denials]
+    attack_paths = denied_worker_requests(ctx.researcher_requested_paths, denied_paths)
+    request_source = (
+        "real model output" if ctx.model_backed else "document-driven deterministic stand-in"
+    )
     print()
     print("  ---------------------------------------------------------------")
-    print(f"  attack detected   : {'yes' if ctx.denials else 'NO'}")
+    print(f"  attack landed     : {'yes' if attack_paths else 'NO'}")
+    print(f"  request source    : {request_source}")
+    print(f"  researcher asked  : {ctx.researcher_requested_paths or '(none)'}")
     print(f"  denied paths      : {result.get('denied_paths') or '(none)'}")
     print(f"  quarantined       : {result.get('quarantined_worker') or '(none)'}")
+    print(f"  trusted artifacts : {ctx.trusted_artifact_ids or '(none)'}")
+    print(f"  tainted artifacts : {ctx.tainted_artifact_ids or '(none)'}")
     print(f"  vuln proven       : {result.get('vulnerability_proven')}")
     print(f"    before the fix  : {result.get('baseline_summary')}   <- regression test RED")
     print(f"    after the fix   : {result.get('test_summary')}   <- regression test GREEN")
@@ -235,7 +245,7 @@ def _report(result: dict, ctx: RunContext) -> int:
         print("        run's denial was a network failure, not the policy.")
         print()
 
-    if not ctx.denials:
+    if not attack_paths:
         print("  The injection did not land this run: the Security Researcher never")
         print("  requested a protected path, so there was nothing for the policy to")
         print("  deny. Re-run, or tune demo_target/docs/auth_notes.md -- never")

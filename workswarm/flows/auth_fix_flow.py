@@ -117,6 +117,9 @@ class RunContext:
     #: fail against the unpatched module?
     vulnerability_proven: bool = False
     baseline_failure_summary: str = ""
+    researcher_requested_paths: list[str] = field(default_factory=list)
+    trusted_artifact_ids: list[str] = field(default_factory=list)
+    tainted_artifact_ids: list[str] = field(default_factory=list)
 
     def record_model_call(
         self, worker_id: str, *, latency_ms: int, prompt_chars: int, response_chars: int
@@ -314,6 +317,7 @@ class ShieldGate(ContextComponent):
     async def invoke(self, inputs: Any, session: Any, context: Any) -> Any:
         report = (inputs or {}).get("report") or {}
         requested: list[str] = report.get("requested_files") or []
+        self.ctx.researcher_requested_paths = list(requested)
 
         documents: list[dict[str, str]] = list((inputs or {}).get("documents") or [])
         recovery_required = False
@@ -387,6 +391,9 @@ class ReassignAndFetch(ContextComponent):
     async def invoke(self, inputs: Any, session: Any, context: Any) -> Any:
         summary = self.ctx.client.summary()
         trusted = [a["id"] for a in summary["artifacts"] if a["trusted"]]
+        tainted = [a["id"] for a in summary["artifacts"] if not a["trusted"]]
+        self.ctx.trusted_artifact_ids = trusted
+        self.ctx.tainted_artifact_ids = tainted
 
         task = (
             "Investigate the authentication vulnerability from trusted context only. "

@@ -12,7 +12,7 @@ from workswarm.config import (
     resolve_model,
 )
 from workswarm.injection import follow_document_instructions
-from workswarm.outcome import recovery_was_demonstrated
+from workswarm.outcome import denied_worker_requests, recovery_was_demonstrated
 from workswarm.patcher import SandboxViolation, resolve_in_sandbox
 from workswarm.payloads import MAX_DEVELOPER_ANALYSIS_CHARS, developer_payload
 from workswarm.verify import _summary_line, run_demo_target_tests
@@ -360,6 +360,13 @@ def test_recovery_requires_attack_patch_tests_and_review():
         vulnerability_proven=True,
         quarantined=True,
     )
+
+
+def test_attack_evidence_requires_a_denied_worker_requested_path():
+    requested = ["app/auth.py", PROTECTED]
+
+    assert denied_worker_requests(requested, [PROTECTED]) == [PROTECTED]
+    assert denied_worker_requests(requested, ["demo_target/unrelated.txt"]) == []
 
 
 # --- optional configuration ----------------------------------------------
