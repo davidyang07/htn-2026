@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { EventFeed } from "@/components/activity/EventFeed";
+import { Section } from "@/components/demo/Section";
 import { PageHeader } from "@/components/shell/AppShell";
 import { Badge, SecurityStateBadge, SeverityDot } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -167,93 +168,123 @@ export default function DemoPage() {
         }
       />
 
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5">
-        {loadError && (
-          <ErrorState
-            title="Cannot reach the AgentShield control plane"
-            detail={`${loadError} — check that the backend is running and that NEXT_PUBLIC_BACKEND_URL points at its port.`}
-          />
-        )}
-        {schemaError && (
-          <ErrorState title="Event stream schema mismatch" detail={schemaError} />
-        )}
-
-        <VerdictStrip lights={lights} />
-
-        {summary ? (
-          <>
-            <ObjectiveBar summary={summary} />
-
-            <div className="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-              <div className="flex min-w-0 flex-col gap-4">
-                <Panel flush className="min-h-0">
-                  <PanelHeader
-                    bordered
-                    title="The swarm"
-                    description="Named WorkSwarm workers. Colour is security state and nothing else."
-                  />
-                  <div className="h-[300px] min-h-0 w-full">
-                    {model.nodes.length === 0 ? (
-                      <EmptyState
-                        className="h-full"
-                        title="No workers registered yet"
-                        description="The graph draws as soon as the swarm registers its team."
-                      />
-                    ) : (
-                      <TopologyGraph
-                        model={model}
-                        layers={new Set(["mesh"] as const)}
-                        selectedId={null}
-                        onSelect={() => {}}
-                      />
-                    )}
-                  </div>
-                </Panel>
-
-                <WorkerTable summary={summary} />
-              </div>
-
-              <Panel flush className="min-h-0 xl:max-h-[calc(100vh-18rem)]">
-                <PanelHeader
-                  bordered
-                  title="Incident timeline"
-                  description="Every line is a real event on the live stream."
-                />
-                <EventFeed
-                  className="min-h-0 flex-1"
-                  events={liveEvents}
-                  emptyTitle="No events yet"
-                  emptyHint="The timeline fills as the WorkSwarm workflow runs."
-                />
-              </Panel>
-            </div>
-
-            <div className="grid gap-4 xl:grid-cols-2">
-              <IncidentPanel verdict={verdict} summary={summary} explanation={explanation} />
-              <VerificationPanel verdict={verdict} summary={summary} />
-            </div>
-
-            <ArtifactPanel summary={summary} />
-          </>
-        ) : (
-          <Panel>
-            <EmptyState
-              icon={<IconSpark className="size-5" />}
-              title="No live swarm session"
-              description={
-                <>
-                  Start the AgentShield backend, then launch the WorkSwarm run. This screen
-                  attaches to the session it creates and narrates it as it happens.
-                </>
-              }
-              action={
-                <code className="rounded-md border border-line bg-raised px-2.5 py-1.5 font-mono text-xs text-fg">
-                  {LAUNCH_COMMAND}
-                </code>
-              }
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-7 px-6 py-6">
+          {loadError && (
+            <ErrorState
+              title="Cannot reach the AgentShield control plane"
+              detail={`${loadError} — check that the backend is running and that NEXT_PUBLIC_BACKEND_URL points at its port.`}
             />
-          </Panel>
-        )}
+          )}
+          {schemaError && (
+            <ErrorState title="Event stream schema mismatch" detail={schemaError} />
+          )}
+
+          {summary ? (
+            <>
+              <Section
+                step="01"
+                title="The task"
+                description="What the user asked the team to do."
+              >
+                <ObjectiveBar summary={summary} />
+              </Section>
+
+              <Section
+                step="02"
+                title="The swarm"
+                description="Named WorkSwarm workers. Colour is security state and nothing else."
+              >
+                <div className="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+                  <Panel flush className="min-h-0">
+                    <div className="h-[300px] min-h-0 w-full">
+                      {model.nodes.length === 0 ? (
+                        <EmptyState
+                          className="h-full"
+                          title="No workers registered yet"
+                          description="The graph draws as soon as the swarm registers its team."
+                        />
+                      ) : (
+                        <TopologyGraph
+                          model={model}
+                          layers={new Set(["mesh"] as const)}
+                          selectedId={null}
+                          onSelect={() => {}}
+                        />
+                      )}
+                    </div>
+                  </Panel>
+
+                  <WorkerTable summary={summary} />
+                </div>
+              </Section>
+
+              <Section
+                step="03"
+                title="The incident"
+                description="Recorded deterministically, before anything was read."
+              >
+                <div className="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                  <IncidentPanel
+                    verdict={verdict}
+                    summary={summary}
+                    explanation={explanation}
+                  />
+                  <Panel flush className="min-h-0 max-h-[32rem]">
+                    <PanelHeader
+                      bordered
+                      title="Incident timeline"
+                      description="Every line is a real event on the live stream."
+                    />
+                    <EventFeed
+                      className="min-h-0 flex-1"
+                      events={liveEvents}
+                      emptyTitle="No events yet"
+                      emptyHint="The timeline fills as the WorkSwarm workflow runs."
+                    />
+                  </Panel>
+                </div>
+              </Section>
+
+              <Section
+                step="04"
+                title="The evidence"
+                description="What proves the job still got done."
+              >
+                <div className="flex flex-col gap-4">
+                  <VerificationPanel verdict={verdict} summary={summary} />
+                  <ArtifactPanel summary={summary} />
+                </div>
+              </Section>
+
+              <Section
+                step="05"
+                title="The verdict"
+                description="Every light below is set by a recorded event, never by a claim."
+              >
+                <VerdictStrip lights={lights} />
+              </Section>
+            </>
+          ) : (
+            <Panel>
+              <EmptyState
+                icon={<IconSpark className="size-5" />}
+                title="No live swarm session"
+                description={
+                  <>
+                    Start the AgentShield backend, then launch the WorkSwarm run. This screen
+                    attaches to the session it creates and narrates it as it happens.
+                  </>
+                }
+                action={
+                  <code className="rounded-md border border-line bg-raised px-2.5 py-1.5 font-mono text-xs text-fg">
+                    {LAUNCH_COMMAND}
+                  </code>
+                }
+              />
+            </Panel>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -305,7 +336,6 @@ function VerdictStrip({ lights }: { lights: VerdictLight[] }) {
 function ObjectiveBar({ summary }: { summary: RuntimeSessionSummary }) {
   return (
     <Panel className="gap-1.5">
-      <span className="eyebrow">The task the user gave the team</span>
       <p className="text-sm leading-6 text-fg">&ldquo;{summary.objective}&rdquo;</p>
     </Panel>
   );
@@ -369,7 +399,7 @@ function IncidentPanel({
     return (
       <Panel>
         <PanelHeader
-          title="The incident"
+          title="Policy decision"
           description="Fills in the moment a worker asks for something outside its policy envelope."
         />
         <EmptyState
@@ -387,8 +417,8 @@ function IncidentPanel({
   return (
     <Panel>
       <PanelHeader
-        title="The incident"
-        description="Recorded deterministically, before anything was read."
+        title="Policy decision"
+        description="Denied synchronously — nothing was read."
         actions={
           <Badge severity="critical">
             <IconAlert className="size-3" />
