@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AttackBanner } from "@/components/demo/AttackBanner";
 import { ContainmentPanel } from "@/components/demo/ContainmentPanel";
 import { NarrativeTimeline } from "@/components/demo/NarrativeTimeline";
+import { TestEvidencePanel } from "@/components/demo/TestEvidencePanel";
 import { IncidentStage } from "@/components/demo/IncidentStage";
 import { RunHeader } from "@/components/demo/RunHeader";
 import { Section } from "@/components/demo/Section";
@@ -25,6 +26,7 @@ import { runWindow } from "@/lib/runtime/clock";
 import { deriveProvenance } from "@/lib/runtime/provenance";
 import { deriveIncident } from "@/lib/runtime/incident";
 import { buildStage } from "@/lib/runtime/stage";
+import { deriveTestEvidence } from "@/lib/runtime/testRuns";
 import { useRuntimeStream } from "@/lib/runtime/useRuntimeStream";
 import { deriveVerdict, verdictLights, type VerdictLight } from "@/lib/runtime/verdict";
 import { SEVERITY_TEXT, type Severity } from "@/lib/severity";
@@ -87,6 +89,7 @@ export default function DemoPage() {
   const lights = useMemo(() => verdictLights(verdict), [verdict]);
   const provenance = useMemo(() => deriveProvenance(liveEvents), [liveEvents]);
   const incident = useMemo(() => deriveIncident(liveEvents), [liveEvents]);
+  const testEvidence = useMemo(() => deriveTestEvidence(liveEvents), [liveEvents]);
   const clock = useMemo(() => runWindow(liveEvents), [liveEvents]);
 
   // The explanation is post-hoc commentary on an already-recorded decision, so
@@ -182,8 +185,11 @@ export default function DemoPage() {
                 description="What proves the job still got done."
               >
                 <div className="flex flex-col gap-4">
-                  <VerificationPanel verdict={verdict} summary={summary} />
-                  <ArtifactPanel summary={summary} />
+                  <TestEvidencePanel evidence={testEvidence} />
+                  <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                    <VerificationPanel verdict={verdict} />
+                    <ArtifactPanel summary={summary} />
+                  </div>
                 </div>
               </Section>
 
@@ -321,21 +327,12 @@ const STEP_LABEL: Record<string, string> = {
   review: "Independently reviewed",
 };
 
-function VerificationPanel({
-  verdict,
-  summary,
-}: {
-  verdict: ReturnType<typeof deriveVerdict>;
-  summary: RuntimeSessionSummary;
-}) {
-  const testSeverity: Severity =
-    verdict.testsPassed === true ? "ok" : verdict.testsPassed === false ? "critical" : "neutral";
-
+function VerificationPanel({ verdict }: { verdict: ReturnType<typeof deriveVerdict> }) {
   return (
     <Panel>
       <PanelHeader
-        title="Verification"
-        description="The team finished the job. This is the evidence, not a claim."
+        title="Work completed"
+        description="Each step a worker actually finished, in the order it happened."
       />
 
       {verdict.completedSteps.length === 0 ? (
@@ -360,19 +357,6 @@ function VerificationPanel({
           ))}
         </ol>
       )}
-
-      <div className="mt-3 rounded-md border border-line bg-raised p-3">
-        <p className="eyebrow mb-1.5">
-          {verdict.testCommand ? `$ ${verdict.testCommand}` : "Real test run"}
-        </p>
-        <p className={cn("font-mono text-xs", SEVERITY_TEXT[testSeverity])}>
-          {summary.test_summary ?? verdict.testSummary ?? "No test run reported yet."}
-        </p>
-        <p className="mt-2 text-2xs leading-4 text-fg-subtle">
-          Verbatim from an actual <span className="font-mono">pytest</span> subprocess. A red run
-          is reported red.
-        </p>
-      </div>
     </Panel>
   );
 }
