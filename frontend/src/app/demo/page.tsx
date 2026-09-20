@@ -145,7 +145,7 @@ export default function DemoPage() {
       />
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-7 px-6 py-6">
+        <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-9 px-6 py-7 pb-16">
           {/* A load failure while a session is on screen keeps the screen: the
               events already streamed are still true, and blanking them would
               throw away the part of the run that did happen. With no session
@@ -189,7 +189,7 @@ export default function DemoPage() {
               >
                 <AttackBanner incident={incident} />
 
-                <div className="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                <div className="grid min-h-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                   <ContainmentPanel incident={incident} artifacts={summary.artifacts} />
                   <div className="flex min-h-0 max-h-[34rem] flex-col">
                     <NarrativeTimeline events={liveEvents} />
@@ -204,7 +204,7 @@ export default function DemoPage() {
               >
                 <div className="flex flex-col gap-4">
                   <TestEvidencePanel evidence={testEvidence} />
-                  <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+                  <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                     <VerificationPanel verdict={verdict} />
                     <ArtifactPanel summary={summary} />
                   </div>
@@ -243,10 +243,14 @@ export default function DemoPage() {
 // --- the task -------------------------------------------------------------
 
 function ObjectiveBar({ summary }: { summary: RuntimeSessionSummary }) {
+  // A quotation, not a readout: one rule and open space carry it, where a
+  // full bordered panel around a single sentence made it look like a metric.
   return (
-    <Panel className="gap-1.5">
-      <p className="text-sm leading-6 text-fg">&ldquo;{summary.objective}&rdquo;</p>
-    </Panel>
+    <blockquote className="border-l-2 border-accent-line pl-4">
+      <p className="max-w-4xl text-base leading-7 text-fg">
+        &ldquo;{summary.objective}&rdquo;
+      </p>
+    </blockquote>
   );
 }
 
