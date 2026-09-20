@@ -42,6 +42,14 @@ class ModelsResult:
     expected_model_found: bool
 
 
+@dataclass(frozen=True)
+class ChatResult:
+    """Result of one minimal OpenAI-compatible completion."""
+
+    probe: ProbeResult
+    response_chars: int
+
+
 def endpoint_urls(base_url: str) -> EndpointUrls:
     """Normalize either a vLLM service root or its ``/v1`` API base.
 
@@ -171,4 +179,61 @@ class RunPodVerifier:
             ),
             model_ids=model_ids,
             expected_model_found=expected,
+        )
+
+    def probe_chat(self, *, max_tokens: int = 16) -> ChatResult:
+        """POST one tiny completion and validate the OpenAI response shape."""
+        started = time.perf_counter()
+        try:
+            response = self._client.post(
+                self.urls.chat_completions,
+                json={
+                    "model": self.model.model_name,
+                    "messages": [{"role": "user", "content": "Reply with exactly: ready"}],
+                    "temperature": 0,
+                    "max_tokens": max_tokens,
+                },
+            )
+        except httpx.RequestError as exc:
+            return ChatResult(
+                probe=ProbeResult(
+                    name="chat",
+                    ok=False,
+                    status_code=None,
+                    latency_ms=int((time.perf_counter() - started) * 1000),
+                    detail=f"request failed ({type(exc).__name__})",
+                ),
+                response_chars=0,
+            )
+
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        if response.status_code != 200:
+            return ChatResult(
+                probe=ProbeResult(
+                    name="chat",
+                    ok=False,
+                    status_code=response.status_code,
+                    latency_ms=elapsed_ms,
+                    detail="unexpected HTTP status",
+                ),
+                response_chars=0,
+            )
+
+        try:
+            payload = response.json()
+            content = payload["choices"][0]["message"]["content"]
+            valid = isinstance(content, str) and bool(content.strip())
+        except (IndexError, KeyError, TypeError, ValueError):
+            content = ""
+            valid = False
+
+        return ChatResult(
+            probe=ProbeResult(
+                name="chat",
+                ok=valid,
+                status_code=response.status_code,
+                latency_ms=elapsed_ms,
+                detail="completion returned" if valid else "malformed completion response",
+            ),
+            response_chars=len(content) if isinstance(content, str) else 0,
         )

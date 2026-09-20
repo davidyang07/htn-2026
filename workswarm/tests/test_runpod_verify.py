@@ -112,3 +112,45 @@ def test_models_probe_rejects_wrong_or_malformed_catalog():
         result = verifier.probe_models()
         assert result.probe.ok is False
         assert result.expected_model_found is False
+
+
+def test_chat_probe_posts_openai_compatible_request():
+    captured = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["path"] = request.url.path
+        captured["body"] = request.read().decode()
+        return httpx.Response(
+            200,
+            json={
+                "id": "cmpl-test",
+                "choices": [{"message": {"role": "assistant", "content": "ready"}}],
+            },
+        )
+
+    verifier = RunPodVerifier(_model(), client=httpx.Client(transport=httpx.MockTransport(handler)))
+    result = verifier.probe_chat(max_tokens=8)
+
+    assert result.probe.ok is True
+    assert result.response_chars == 5
+    assert captured["path"] == "/v1/chat/completions"
+    assert '"model":"Qwen/Qwen2.5-Coder-7B-Instruct"' in captured["body"]
+    assert '"max_tokens":8' in captured["body"]
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        httpx.Response(500),
+        httpx.Response(200, json={}),
+        httpx.Response(200, json={"choices": []}),
+        httpx.Response(200, json={"choices": [{"message": {"content": ""}}]}),
+    ],
+)
+def test_chat_probe_rejects_http_and_response_shape_failures(response):
+    verifier = RunPodVerifier(
+        _model(), client=httpx.Client(transport=httpx.MockTransport(lambda _: response))
+    )
+    result = verifier.probe_chat()
+    assert result.probe.ok is False
+    assert result.response_chars == 0
