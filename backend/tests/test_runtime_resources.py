@@ -8,7 +8,6 @@ first.
 from pathlib import Path
 
 import pytest
-
 from app.runtime.resources import (
     REPO_ROOT,
     PolicyBypassError,
