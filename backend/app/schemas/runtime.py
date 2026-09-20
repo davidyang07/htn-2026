@@ -187,16 +187,3 @@ class RuntimeEventPage(BaseModel):
 class RuntimeResetResponse(BaseModel):
     cleared: int
 
-
-class IncidentExplanation(BaseModel):
-    """Post-hoc commentary on an already-made deterministic decision.
-
-    `source` is surfaced in the UI so a reader always knows whether a model
-    wrote this. It is never an input to a policy outcome.
-    """
-
-    available: bool
-    source: Literal["openai", "deterministic", "none"]
-    headline: str
-    body: str
-    model: str | None = None

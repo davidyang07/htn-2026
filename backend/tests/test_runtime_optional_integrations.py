@@ -14,6 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import Settings
+from app.explanation.provider import ExplanationProvider
 from app.main import app
 from app.runtime.explain import deterministic_explanation, explain_incident
 from app.runtime.registry import runtime_registry
@@ -461,7 +462,9 @@ def test_explanation_without_an_openai_key_is_deterministic_and_still_useful():
 
     async def main() -> None:
         async with httpx.AsyncClient() as client:
-            explanation = await explain_incident(session, _unconfigured(), client)
+            explanation = await explain_incident(
+                session, _unconfigured(), client, provider=None
+            )
         assert explanation.available is True
         assert explanation.source == "deterministic"
         assert explanation.model is None
@@ -475,7 +478,9 @@ def test_explanation_treats_a_blank_openai_key_as_absent():
 
     async def main() -> None:
         async with httpx.AsyncClient() as client:
-            explanation = await explain_incident(session, _blank_strings(), client)
+            explanation = await explain_incident(
+                session, _blank_strings(), client, provider=None
+            )
         assert explanation.source == "deterministic"
 
     asyncio.run(main())
@@ -488,7 +493,18 @@ def test_an_unreachable_openai_degrades_to_the_deterministic_explanation():
 
     async def main() -> None:
         async with httpx.AsyncClient() as client:
-            explanation = await explain_incident(session, settings, client)
+            explanation = await explain_incident(
+                session,
+                settings,
+                client,
+                provider=ExplanationProvider(
+                    provider="OpenAI",
+                    model=settings.openai_model,
+                    api_base=settings.openai_base_url,
+                    api_key=settings.openai_api_key,
+                    source="test",
+                ),
+            )
         assert explanation.source == "deterministic"
         assert explanation.available is True
 

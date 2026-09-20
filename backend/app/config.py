@@ -44,6 +44,15 @@ class Settings(BaseSettings):
     # Optional post-hoc incident explanation (docs/MVP_PLAN.md P0.14). An LLM
     # may *explain* an incident only after the deterministic decision has been
     # made and recorded; it is never an input to a policy outcome.
+    # These AGENTSHIELD_MODEL_* names are shared with WorkSwarm, so its
+    # sponsor/OpenRouter credential is reused rather than copied or replaced.
+    agentshield_model_base_url: str | None = None
+    agentshield_model_api_key: str | None = None
+    agentshield_model_name: str | None = None
+    agentshield_model_provider: str | None = None
+
+    # Legacy direct-OpenAI settings remain a last-priority compatibility path.
+    # They are not required for incident explanation.
     openai_api_key: str | None = None
     openai_base_url: str = "https://api.openai.com/v1"
     openai_model: str = "gpt-4o-mini"

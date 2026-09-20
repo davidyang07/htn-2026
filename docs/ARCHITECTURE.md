@@ -183,12 +183,30 @@ Three tiers, and the boundary between tier 2 and tier 3 is absolute:
 |---|---|---|
 | 1 | WorkSwarm workers (sponsor model / Qwen / OpenAI) | No — they are the *subject* of enforcement |
 | 2 | AgentShield policy + quarantine + tainting | **This is the decision.** Deterministic code only |
-| 3 | OpenAI incident explanation, OpenAI Reviewer | No — runs strictly *after* the decision, on the recorded event |
+| 3 | Optional incident explanation (WorkSwarm/OpenRouter or local) | No — reads only an already-recorded event projection |
 
 Implementation consequence: the explanation call happens after `POLICY_VIOLATION` and
 `AGENT_QUARANTINED` are already emitted and persisted in the session's event log. If the
-explanation call fails, times out, or is not configured, the demo is unaffected — an empty
-explanation panel, nothing more.
+provider is absent, unreachable, timed out, or malformed, the same endpoint returns deterministic
+local commentary. Explanation failure cannot change allow/deny, quarantine, artifact trust,
+replacement, workflow completion, or any event: the service receives an immutable evidence value,
+not the mutable runtime session.
+
+### 4.1 Safe incident evidence
+
+`app/explanation/evidence.py` builds an explicit allowlist from recorded events. It contains only
+the session id, worker role and assigned task, requested resource **path**, deterministic rule and
+deny outcome, quarantine state, tainted artifact ids, replacement relationship, before/after test
+results, reviewer result, and final recovery state. Models are frozen and reject extra fields.
+
+The projection never serializes whole events, artifacts, repository files, prompts, completions,
+headers, or credentials. Only this projection is sent to a compatible provider. The response is
+labelled `AI-generated post-hoc explanation`; its `authority` field states that deterministic
+AgentShield policy and recorded events—not the model—made and prove the decision.
+
+Provider resolution reuses `workswarm/config.py::resolve_model()`, including WorkSwarm's sponsor
+OpenRouter configuration and credential location. `AGENTSHIELD_MODEL_*` is the container-safe
+fallback, and legacy `OPENAI_*` remains last priority; no direct OpenAI key is required.
 
 ---
 
@@ -361,7 +379,7 @@ GET    /api/runtime/sessions/current                  the session /demo attaches
 GET    /api/runtime/sessions/{id}                     summary (workers, artifacts, trust)
 GET    /api/runtime/sessions/{id}/events              the replay buffer
 GET    /api/runtime/sessions/{id}/snapshot            the same frame the socket sends
-GET    /api/runtime/sessions/{id}/explanation         post-hoc commentary, optional
+GET    /api/runtime/sessions/{id}/explanation         safe evidence + post-hoc commentary
 POST   /api/runtime/sessions/{id}/workers             register one more worker
 POST   /api/runtime/sessions/{id}/resource-request    THE policy decision (sync response)
 POST   /api/runtime/sessions/{id}/tasks/start         worker lifecycle
@@ -541,7 +559,7 @@ Demo-day realism, in rough order of likelihood:
 |---|---|
 | Postgres down | Already handled: `main.py` degrades to `pg_pool = None`. The live runtime never touches it in P0. |
 | Sentry unconfigured | No-op. No DSN → no SDK init → no emission. Never a startup dependency. |
-| OpenAI unavailable | The Reviewer/explanation degrades to absent. The deterministic verdict is unchanged. |
+| Explanation provider absent, unreachable, timed out, or malformed | Return deterministic local commentary over the same safe evidence. The deterministic verdict and workflow are unchanged. |
 | RunPod unavailable | Replacement worker falls back to the sponsor model. P1 feature, never critical path. |
 | WorkSwarm model call fails | Surfaced as a workflow error event. AgentShield's recorded decisions stand. |
 | The UI disconnects | `?since_seq=N` replays from the ring buffer; a gap forces a fresh snapshot. |
