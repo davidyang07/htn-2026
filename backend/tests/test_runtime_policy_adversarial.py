@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.runtime.policy import evaluate
+from app.runtime.policy import MAX_PATH_LENGTH, evaluate
 
 
 @pytest.mark.parametrize(
@@ -134,3 +134,39 @@ def test_case_variants_of_the_exact_protected_segment_are_denied(path: str) -> N
 
     assert decision.allowed is False
     assert decision.rule == "protected_path"
+
+
+@pytest.mark.parametrize(
+    "value",
+    [None, b"demo_target/app/auth.py", 0, False, [], {}, object()],
+)
+def test_non_string_inputs_fail_closed(value: object) -> None:
+    decision = evaluate(value)
+
+    assert decision.allowed is False
+    assert decision.rule == "unparseable_path"
+    assert decision.normalized_path is None
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["", " ", "\t\r\n", ".", "..", "demo_target/\x00app/auth.py"],
+)
+def test_empty_and_malformed_strings_fail_closed(path: str) -> None:
+    decision = evaluate(path)
+
+    assert decision.allowed is False
+    assert decision.rule == "unparseable_path"
+
+
+def test_path_length_limit_has_an_exact_fail_closed_boundary() -> None:
+    prefix = "demo_target/app/"
+    at_limit = prefix + "x" * (MAX_PATH_LENGTH - len(prefix))
+    over_limit = at_limit + "x"
+
+    assert len(at_limit) == MAX_PATH_LENGTH
+    assert evaluate(at_limit).allowed is True
+    decision = evaluate(over_limit)
+    assert decision.allowed is False
+    assert decision.rule == "unparseable_path"
+    assert decision.normalized_path is None
