@@ -91,3 +91,53 @@ def test_connection_failure_falls_back_to_sponsor_without_raising():
     assert "ConnectError" in resolved.selection.reason
     assert resolved.verification is not None
     assert resolved.verification.ready is False
+
+
+def test_timeout_falls_back_without_claiming_runpod():
+    sponsor = _model("sponsor", "https://sponsor.invalid/v1")
+    runpod = _model("runpod", "https://runpod.invalid/v1")
+
+    def factory(model):
+        def timeout(request: httpx.Request) -> httpx.Response:
+            raise httpx.ReadTimeout("too slow", request=request)
+
+        return RunPodVerifier(
+            model, client=httpx.Client(transport=httpx.MockTransport(timeout))
+        )
+
+    resolved = select_verified_replacement(
+        sponsor=sponsor, runpod=runpod, verifier_factory=factory
+    )
+
+    assert resolved.selection.route == "sponsor_fallback"
+    assert resolved.selection.model.source == "sponsor"
+    assert "RunPod health check failed" in resolved.selection.reason
+    assert "ReadTimeout" in resolved.selection.reason
+
+
+def test_wrong_model_catalog_falls_back_to_sponsor():
+    sponsor = _model("sponsor", "https://sponsor.invalid/v1")
+    runpod = _model("runpod", "https://runpod.invalid/v1")
+
+    def factory(model):
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/health":
+                return httpx.Response(200)
+            if request.url.path == "/v1/models":
+                return httpx.Response(200, json={"data": [{"id": "wrong-model"}]})
+            raise AssertionError("chat must not run for a mismatched model catalog")
+
+        return RunPodVerifier(
+            model, client=httpx.Client(transport=httpx.MockTransport(handler))
+        )
+
+    resolved = select_verified_replacement(
+        sponsor=sponsor, runpod=runpod, verifier_factory=factory
+    )
+
+    assert resolved.selection.route == "sponsor_fallback"
+    assert resolved.selection.model is sponsor
+    assert resolved.verification is not None
+    assert resolved.verification.models is not None
+    assert resolved.verification.models.expected_model_found is False
+    assert "configured model not advertised" in resolved.selection.reason
