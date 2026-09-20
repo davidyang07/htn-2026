@@ -40,6 +40,7 @@ from openjiuwen.core.workflow import (
 
 from workswarm.config import ModelConfig
 from workswarm.injection import follow_document_instructions
+from workswarm.replacement_provider import ProviderUse, ReplacementFailover
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +106,37 @@ def build_llm_worker(
             output_config={"report": {"type": "string", "required": True}},
         )
     )
+
+
+class FailoverWorker(WorkflowComponent):
+    """Run the replacement on RunPod, with the normal P0 worker as backup."""
+
+    def __init__(
+        self,
+        primary: Any,
+        fallback: Any,
+        *,
+        runpod_model: ModelConfig,
+        fallback_model: ModelConfig,
+    ) -> None:
+        super().__init__()
+        self.primary = primary
+        self.fallback = fallback
+        self.failover = ReplacementFailover(runpod_model, fallback_model)
+
+    @property
+    def provider_use(self) -> ProviderUse | None:
+        return self.failover.last_use
+
+    async def invoke(self, inputs: Any, session: Any, context: Any) -> Any:
+        async def call(worker: Any) -> Any:
+            runnable = worker.executable if hasattr(worker, "executable") else worker
+            return await runnable.invoke(inputs, session, context)
+
+        return await self.failover.invoke(
+            lambda: call(self.primary),
+            lambda: call(self.fallback),
+        )
 
 
 #: A fenced code block, with or without a language tag.
