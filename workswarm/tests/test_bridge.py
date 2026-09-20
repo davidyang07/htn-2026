@@ -26,6 +26,33 @@ def _client(transport: httpx.MockTransport) -> AgentShieldClient:
     return client
 
 
+# --- distributed trace propagation --------------------------------------
+
+
+def test_sentry_trace_correlation_headers_are_forwarded(monkeypatch):
+    monkeypatch.setattr("sentry_sdk.get_traceparent", lambda: "trace-parent-value")
+    monkeypatch.setattr("sentry_sdk.get_baggage", lambda: "sentry-release=demo")
+
+    client = AgentShieldClient("http://control-plane.invalid")
+
+    assert client._trace_headers() == {
+        "sentry-trace": "trace-parent-value",
+        "baggage": "sentry-release=demo",
+    }
+
+
+def test_trace_header_failure_is_a_safe_no_op(monkeypatch):
+    def unavailable():
+        raise RuntimeError("SDK context unavailable")
+
+    monkeypatch.setattr("sentry_sdk.get_traceparent", unavailable)
+    monkeypatch.setattr("sentry_sdk.get_baggage", unavailable)
+
+    client = AgentShieldClient("http://control-plane.invalid")
+
+    assert client._trace_headers() == {}
+
+
 @pytest.mark.parametrize("status", [400, 401, 404, 409, 422, 500, 502, 503])
 def test_a_non_2xx_response_is_a_denial(status: int):
     client = _client(httpx.MockTransport(lambda _: httpx.Response(status, json={})))
