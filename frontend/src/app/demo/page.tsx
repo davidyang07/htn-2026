@@ -4,10 +4,9 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { EventFeed } from "@/components/activity/EventFeed";
+import { RunHeader } from "@/components/demo/RunHeader";
 import { Section } from "@/components/demo/Section";
-import { PageHeader } from "@/components/shell/AppShell";
 import { Badge, SecurityStateBadge, SeverityDot } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
 import { IconAlert, IconShieldCheck, IconSpark } from "@/components/ui/icons";
 import { Panel, PanelHeader } from "@/components/ui/Panel";
 import { EmptyState, ErrorState, Spinner } from "@/components/ui/States";
@@ -20,6 +19,8 @@ import {
   type IncidentExplanation,
   type RuntimeSessionSummary,
 } from "@/lib/runtime/client";
+import { runWindow } from "@/lib/runtime/clock";
+import { deriveProvenance } from "@/lib/runtime/provenance";
 import { buildSwarmModel } from "@/lib/runtime/swarmModel";
 import { useRuntimeStream } from "@/lib/runtime/useRuntimeStream";
 import { deriveVerdict, verdictLights, type VerdictLight } from "@/lib/runtime/verdict";
@@ -41,18 +42,6 @@ const TopologyGraph = dynamic(
 
 const POLL_MS = 1500;
 const LAUNCH_COMMAND = "python workswarm/run_demo.py";
-
-const WORKFLOW_STATE_COPY: Record<RuntimeSessionSummary["workflow_state"], {
-  label: string;
-  severity: Severity;
-}> = {
-  idle: { label: "Waiting for the swarm", severity: "neutral" },
-  running: { label: "Swarm running", severity: "neutral" },
-  under_attack: { label: "Worker compromised — contained", severity: "critical" },
-  recovering: { label: "Recovering", severity: "contained" },
-  recovered: { label: "Recovered", severity: "ok" },
-  failed: { label: "Failed", severity: "high" },
-};
 
 export default function DemoPage() {
   const [summary, setSummary] = useState<RuntimeSessionSummary | null>(null);
@@ -107,6 +96,8 @@ export default function DemoPage() {
   );
   const verdict = useMemo(() => deriveVerdict(liveEvents), [liveEvents]);
   const lights = useMemo(() => verdictLights(verdict), [verdict]);
+  const provenance = useMemo(() => deriveProvenance(liveEvents), [liveEvents]);
+  const clock = useMemo(() => runWindow(liveEvents), [liveEvents]);
 
   // The explanation is post-hoc commentary on an already-recorded decision, so
   // it is fetched once the incident exists and never before it.
@@ -138,34 +129,16 @@ export default function DemoPage() {
   }, []);
 
   const model = useMemo(() => buildSwarmModel(summary, state), [summary, state]);
-  const workflow = summary ? WORKFLOW_STATE_COPY[summary.workflow_state] : null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <PageHeader
-        eyebrow="Live runtime"
-        title="AgentShield Live Swarm Demo"
-        description="A real WorkSwarm team, protected by a deterministic control plane: one worker is compromised by an indirect prompt injection, denied before it reads anything, quarantined, and replaced — and the workflow still completes."
-        actions={
-          <>
-            {workflow && (
-              <Badge severity={workflow.severity}>
-                <SeverityDot
-                  severity={workflow.severity}
-                  pulse={summary?.workflow_state === "running"}
-                />
-                {workflow.label}
-              </Badge>
-            )}
-            <Badge severity={connected ? "ok" : "neutral"} title="Live event stream">
-              <SeverityDot severity={connected ? "ok" : "neutral"} />
-              {connected ? "Streaming" : "Not connected"}
-            </Badge>
-            <Button variant="default" size="sm" onClick={onReset} disabled={resetting}>
-              {resetting ? "Resetting…" : "Reset demo"}
-            </Button>
-          </>
-        }
+      <RunHeader
+        summary={summary}
+        provenance={provenance}
+        window={clock}
+        connected={connected}
+        onReset={onReset}
+        resetting={resetting}
       />
 
       <div className="min-h-0 flex-1 overflow-y-auto">
