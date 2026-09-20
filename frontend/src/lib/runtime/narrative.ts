@@ -11,7 +11,7 @@
 // Researcher working · 2 files read, 1 model call". Nothing is dropped; the
 // full stream stays one toggle away, and a group states exactly what it folded.
 
-import { SEVERITY_TEXT, type Severity } from "@/lib/severity";
+import type { Severity } from "@/lib/severity";
 import type { Event } from "@/lib/stream/reducer";
 
 export type Beat = {
@@ -251,5 +251,3 @@ export function deriveNarrative(events: readonly Event[]): Beat[] {
   closeActivity();
   return beats;
 }
-
-export const BEAT_TEXT = SEVERITY_TEXT;

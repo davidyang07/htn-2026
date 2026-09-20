@@ -163,7 +163,12 @@ export default function DemoPage() {
             />
           )}
 
-          {summary ? (
+          {/* A session exists but nothing has arrived over the socket yet. The
+              full layout would be six sections of empty states, which reads as
+              a broken dashboard rather than as a run that is one second old. */}
+          {summary && liveEvents.length === 0 && !loadError ? (
+            <IdleState status="connecting" detail={null} command={LAUNCH_COMMAND} />
+          ) : summary ? (
             <>
               <Section
                 step="01"

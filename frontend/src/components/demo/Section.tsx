@@ -15,7 +15,6 @@ export function Section({
   step,
   title,
   description,
-  actions,
   children,
   className,
 }: {
@@ -23,7 +22,6 @@ export function Section({
   step: string;
   title: string;
   description?: ReactNode;
-  actions?: ReactNode;
   children: ReactNode;
   className?: string;
 }) {
@@ -40,7 +38,6 @@ export function Section({
         {description && (
           <p className="min-w-0 flex-1 text-xs text-fg-subtle">{description}</p>
         )}
-        {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
       </header>
       {children}
     </section>

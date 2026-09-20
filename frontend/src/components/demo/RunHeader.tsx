@@ -81,16 +81,19 @@ export function RunHeader({
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex min-w-0 items-center gap-2.5">
           <SeverityDot severity={state.severity} pulse={live} className="size-2" />
-          <span
-            className={cn(
-              "text-lg font-semibold uppercase tracking-[0.12em]",
-              SEVERITY_TEXT[state.severity],
-            )}
-          >
-            {state.label}
-          </span>
+          <div className="min-w-0">
+            <p
+              className={cn(
+                "text-lg font-semibold uppercase leading-6 tracking-[0.12em]",
+                SEVERITY_TEXT[state.severity],
+              )}
+            >
+              {state.label}
+            </p>
+            <p className="hidden truncate text-2xs text-fg-subtle xl:block">{state.hint}</p>
+          </div>
         </div>
 
         <dl className="ml-auto flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1.5 2xl:gap-x-5">

@@ -72,14 +72,6 @@ export type ProvenanceIndex = {
   calls: number;
 };
 
-export const EMPTY_PROVENANCE: ProvenanceIndex = {
-  byWorker: new Map(),
-  fallbacks: [],
-  distinct: [],
-  primary: null,
-  calls: 0,
-};
-
 export function deriveProvenance(events: readonly Event[]): ProvenanceIndex {
   const byWorker = new Map<string, ModelProvenance>();
   const distinct = new Map<string, ModelProvenance>();

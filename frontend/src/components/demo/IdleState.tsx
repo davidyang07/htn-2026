@@ -1,4 +1,5 @@
 import { BrandMark } from "@/components/ui/icons";
+import { Spinner } from "@/components/ui/States";
 import { cn } from "@/lib/cn";
 
 /**
@@ -77,7 +78,11 @@ export function IdleState({
         </p>
       </header>
 
-      {unreachable ? (
+      {status === "connecting" ? (
+        <p className="flex items-center justify-center gap-2 text-2xs text-fg-subtle">
+          <Spinner /> Backfilling the replay buffer
+        </p>
+      ) : unreachable ? (
         <div className="mx-auto w-full max-w-xl">
           {detail && (
             <p className="break-words rounded-md border border-critical/25 bg-critical-soft px-3 py-2 font-mono text-2xs leading-4 text-critical/90">
