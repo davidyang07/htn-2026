@@ -63,19 +63,20 @@ export function ExplanationPanel({
 
   return (
     <Panel>
-      <PanelHeader
-        title="Incident explanation"
-        description={generated}
-        actions={
-          <Badge severity="neutral" title={explanation.label}>
-            commentary only
-          </Badge>
-        }
-      />
-
-      {explanation.headline && (
-        <p className="mb-3 text-sm leading-6 text-fg">{explanation.headline}</p>
-      )}
+      {/* No panel title: the section above is already called "The
+          explanation", and repeating it here would be the third heading in a
+          row saying the same thing. What is worth saying is who wrote it. */}
+      <header className="mb-3 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0">
+          {explanation.headline && (
+            <p className="text-sm font-medium leading-6 text-fg">{explanation.headline}</p>
+          )}
+          <p className="mt-0.5 text-2xs text-fg-subtle">{generated}</p>
+        </div>
+        <Badge severity="neutral" title={explanation.label}>
+          commentary only
+        </Badge>
+      </header>
 
       {explanation.sections ? (
         <div className="flex flex-col divide-y divide-line/60 border-y border-line/60">
