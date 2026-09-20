@@ -17,6 +17,10 @@ import {
  * status line — rather than in a badge bolted to a neutral box, so the
  * compromised worker is unmistakable at a glance and the healthy ones stay
  * quiet. Colour comes from `severity.ts` and means security state only.
+ *
+ * This replaced a separate worker table that repeated role, id, state and
+ * model-backing for every node already on the stage. A judge should not have
+ * to read the same five rows twice.
  */
 
 /**
@@ -48,36 +52,65 @@ export function WorkerNode({
   const severity = STAGE_SEVERITY[node.securityState];
   const quarantined = node.securityState === "quarantined";
 
+  // One line, and only one: why it is out, or what it is on. A quarantined
+  // worker's reason always wins — it is the more important fact about it.
+  const note = quarantined ? node.quarantineReason : node.currentTask;
+
   return (
     <article
       className={cn(
-        "flex min-w-0 flex-col gap-2 rounded-lg border p-3 transition-colors duration-300",
+        "flex min-w-0 flex-col gap-2.5 rounded-lg border p-3.5 transition-colors duration-300",
         STATE_SHELL[node.securityState],
       )}
     >
-      <header className="flex min-w-0 flex-col gap-0.5">
-        <h3
-          className={cn(
-            "truncate text-sm font-semibold tracking-tight",
-            quarantined ? "text-critical" : "text-fg",
-          )}
-          title={node.role}
-        >
-          {node.role}
-        </h3>
-        <p className="truncate font-mono text-2xs text-fg-subtle" title={node.id}>
-          {node.id}
-        </p>
+      <header className="flex min-w-0 items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <h3
+            className={cn(
+              "truncate text-sm font-semibold tracking-tight",
+              quarantined ? "text-critical" : "text-fg",
+            )}
+            title={node.role}
+          >
+            {node.role}
+          </h3>
+          <p className="truncate font-mono text-2xs text-fg-subtle" title={node.id}>
+            {node.id}
+          </p>
+        </div>
+        {node.replaces && (
+          <span
+            className="shrink-0 rounded-sm bg-contained-soft px-1.5 py-0.5 text-2xs font-semibold uppercase tracking-wide text-contained ring-1 ring-inset ring-contained/25"
+            title={`Created mid-run to take over from ${node.replaces}`}
+          >
+            New
+          </span>
+        )}
       </header>
 
-      <p className="flex items-center gap-1.5 text-2xs font-medium">
+      <p className="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wide">
         <SeverityDot severity={severity} />
         <span className={SEVERITY_TEXT[severity]}>
           {SECURITY_STATE_LABEL[node.securityState]}
         </span>
       </p>
 
-      <p className="min-w-0 truncate font-mono text-2xs text-fg-subtle" title={provenanceTitle(provenance)}>
+      {note && (
+        <p
+          className={cn(
+            "line-clamp-2 text-2xs leading-4",
+            quarantined ? "text-critical/85" : "text-fg-muted",
+          )}
+          title={note}
+        >
+          {note}
+        </p>
+      )}
+
+      <p
+        className="min-w-0 truncate border-t border-line/60 pt-2 font-mono text-2xs text-fg-subtle"
+        title={provenanceTitle(provenance)}
+      >
         {provenance ? (
           <>
             {provenance.model}

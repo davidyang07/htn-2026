@@ -6,7 +6,7 @@ import { EventFeed } from "@/components/activity/EventFeed";
 import { IncidentStage } from "@/components/demo/IncidentStage";
 import { RunHeader } from "@/components/demo/RunHeader";
 import { Section } from "@/components/demo/Section";
-import { Badge, SecurityStateBadge, SeverityDot } from "@/components/ui/Badge";
+import { Badge, SeverityDot } from "@/components/ui/Badge";
 import { IconAlert, IconShieldCheck, IconSpark } from "@/components/ui/icons";
 import { Panel, PanelHeader } from "@/components/ui/Panel";
 import { EmptyState, ErrorState } from "@/components/ui/States";
@@ -155,7 +155,6 @@ export default function DemoPage() {
                 description="Who handed work to whom, and where the chain broke."
               >
                 <IncidentStage stage={stage} provenance={provenance} />
-                <WorkerTable summary={summary} />
               </Section>
 
               <Section
@@ -276,49 +275,6 @@ function ObjectiveBar({ summary }: { summary: RuntimeSessionSummary }) {
   return (
     <Panel className="gap-1.5">
       <p className="text-sm leading-6 text-fg">&ldquo;{summary.objective}&rdquo;</p>
-    </Panel>
-  );
-}
-
-// --- workers --------------------------------------------------------------
-
-function WorkerTable({ summary }: { summary: RuntimeSessionSummary }) {
-  return (
-    <Panel flush>
-      <PanelHeader
-        bordered
-        title="Workers"
-        description="Role, security state, and what each one is doing right now."
-      />
-      <ul className="divide-y divide-line/60">
-        {summary.workers.map((worker) => (
-          <li key={worker.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5">
-            <span className="min-w-0 shrink-0">
-              <span className="block truncate text-xs font-medium text-fg">{worker.role}</span>
-              <span className="block truncate font-mono text-2xs text-fg-subtle">
-                {worker.id}
-              </span>
-            </span>
-
-            <SecurityStateBadge state={worker.security_state} />
-
-            {worker.replaces && (
-              <Badge severity="contained" title={`Replaces ${worker.replaces}`}>
-                replaces {worker.replaces}
-              </Badge>
-            )}
-
-            {/* Never imply a model ran when none was configured. */}
-            <Badge severity="neutral" title="Whether a real model call backs this worker">
-              {worker.model_backed ? "model-backed" : "deterministic stand-in"}
-            </Badge>
-
-            <span className="ml-auto min-w-0 flex-1 truncate text-right text-2xs text-fg-subtle">
-              {worker.quarantine_reason ?? worker.current_task ?? "—"}
-            </span>
-          </li>
-        ))}
-      </ul>
     </Panel>
   );
 }
