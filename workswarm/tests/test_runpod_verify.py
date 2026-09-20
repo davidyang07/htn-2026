@@ -154,3 +154,65 @@ def test_chat_probe_rejects_http_and_response_shape_failures(response):
     result = verifier.probe_chat()
     assert result.probe.ok is False
     assert result.response_chars == 0
+
+
+def test_full_verification_measures_first_and_warm_completions():
+    chat_calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal chat_calls
+        if request.url.path == "/health":
+            return httpx.Response(200)
+        if request.url.path == "/v1/models":
+            return httpx.Response(
+                200, json={"data": [{"id": "Qwen/Qwen2.5-Coder-7B-Instruct"}]}
+            )
+        if request.url.path == "/v1/chat/completions":
+            chat_calls += 1
+            return httpx.Response(
+                200, json={"choices": [{"message": {"content": f"ready-{chat_calls}"}}]}
+            )
+        raise AssertionError(f"unexpected path: {request.url.path}")
+
+    verifier = RunPodVerifier(_model(), client=httpx.Client(transport=httpx.MockTransport(handler)))
+    report = verifier.verify()
+
+    assert report.ready is True
+    assert report.first_completion is not None
+    assert report.warm_completion is not None
+    assert report.first_completion.probe.latency_ms >= 0
+    assert report.warm_completion.probe.latency_ms >= 0
+    assert chat_calls == 2
+
+
+def test_full_verification_stops_after_failed_health():
+    requested_paths = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requested_paths.append(request.url.path)
+        return httpx.Response(503)
+
+    verifier = RunPodVerifier(_model(), client=httpx.Client(transport=httpx.MockTransport(handler)))
+    report = verifier.verify()
+
+    assert report.ready is False
+    assert report.models is None
+    assert report.first_completion is None
+    assert report.warm_completion is None
+    assert requested_paths == ["/health"]
+
+
+def test_startup_measurement_polls_until_healthy():
+    attempts = 0
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        return httpx.Response(200 if attempts == 3 else 503)
+
+    verifier = RunPodVerifier(_model(), client=httpx.Client(transport=httpx.MockTransport(handler)))
+    result = verifier.wait_for_health(max_wait_s=1, poll_interval_s=0, sleep_fn=lambda _: None)
+
+    assert result.healthy is True
+    assert result.attempts == 3
+    assert result.cold_start_ms >= 0

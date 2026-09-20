@@ -50,6 +50,38 @@ class ChatResult:
     response_chars: int
 
 
+@dataclass(frozen=True)
+class StartupResult:
+    """Time from polling start until ``/health`` first succeeds."""
+
+    healthy: bool
+    cold_start_ms: int
+    attempts: int
+    last_probe: ProbeResult
+
+
+@dataclass(frozen=True)
+class VerificationReport:
+    """Health, catalog, first-completion, and warm-completion evidence."""
+
+    health: ProbeResult
+    models: ModelsResult | None
+    first_completion: ChatResult | None
+    warm_completion: ChatResult | None
+
+    @property
+    def ready(self) -> bool:
+        return bool(
+            self.health.ok
+            and self.models
+            and self.models.probe.ok
+            and self.first_completion
+            and self.first_completion.probe.ok
+            and self.warm_completion
+            and self.warm_completion.probe.ok
+        )
+
+
 def endpoint_urls(base_url: str) -> EndpointUrls:
     """Normalize either a vLLM service root or its ``/v1`` API base.
 
@@ -236,4 +268,56 @@ class RunPodVerifier:
                 detail="completion returned" if valid else "malformed completion response",
             ),
             response_chars=len(content) if isinstance(content, str) else 0,
+        )
+
+    def wait_for_health(
+        self,
+        *,
+        max_wait_s: float,
+        poll_interval_s: float = 2.0,
+        sleep_fn=time.sleep,
+    ) -> StartupResult:
+        """Poll health and measure startup without assuming a provisioning API."""
+        started = time.perf_counter()
+        attempts = 0
+        while True:
+            attempts += 1
+            probe = self.probe_health()
+            elapsed_s = time.perf_counter() - started
+            if probe.ok or elapsed_s >= max_wait_s:
+                return StartupResult(
+                    healthy=probe.ok,
+                    cold_start_ms=int(elapsed_s * 1000),
+                    attempts=attempts,
+                    last_probe=probe,
+                )
+            sleep_fn(min(poll_interval_s, max(0.0, max_wait_s - elapsed_s)))
+
+    def verify(self) -> VerificationReport:
+        """Run the required endpoint checks and measure first versus warm chat."""
+        health = self.probe_health()
+        if not health.ok:
+            return VerificationReport(
+                health=health,
+                models=None,
+                first_completion=None,
+                warm_completion=None,
+            )
+
+        models = self.probe_models()
+        if not models.probe.ok:
+            return VerificationReport(
+                health=health,
+                models=models,
+                first_completion=None,
+                warm_completion=None,
+            )
+
+        first = self.probe_chat()
+        warm = self.probe_chat() if first.probe.ok else None
+        return VerificationReport(
+            health=health,
+            models=models,
+            first_completion=first,
+            warm_completion=warm,
         )
