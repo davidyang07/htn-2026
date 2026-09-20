@@ -3,6 +3,10 @@
 **An immune system for agent swarms.** AgentShield detects compromised workers, quarantines them,
 and keeps the workflow alive through trusted replacement.
 
+AgentShield uses [WorkSwarm](docs/WORKSWARM.md) — the latest evolution of JiuwenSwarm — to run a
+real team of specialized agents that divide work, share context, use tools, verify results, and
+adapt when a worker fails.
+
 ## The problem
 
 Multi-agent systems create a new failure mode: one compromised worker can poison downstream agents
@@ -10,14 +14,33 @@ and derail the entire workflow. A poisoned document read by one worker becomes t
 instructions, its output becomes the next worker's input, and the whole team fails while every
 individual agent looks like it is behaving correctly.
 
-Filtering prompts does not solve this. Containment does.
+Our key idea is novel: **multi-agent systems need an immune system.** Today's agent frameworks
+coordinate healthy workers, but there is no standard way to contain a compromised agent without
+killing the whole workflow. Filtering prompts does not solve this. Containment does.
+
+> A strong agent team should not only collaborate when everything works. It should survive when one
+> of its own agents goes wrong.
+
+## What it demonstrates
+
+- **Dynamic collaboration** — specialized agents hand off tasks and trusted context.
+- **Failure recovery** — a compromised worker is quarantined and its unfinished task is reassigned
+  at runtime.
+- **Trust-aware coordination** — tainted outputs are blocked from downstream agents.
+- **Real verification** — the Developer proves the bug with a failing regression test, patches it,
+  turns the suite GREEN, and an independent Reviewer validates the result.
+- **Reusable architecture** — AgentShield sits *outside* the agents as a security control plane, so
+  the same approach extends across models, tools, and frameworks.
 
 ## The demo
 
-A real [WorkSwarm](docs/WORKSWARM.md) team — Repo Analyst, Security Researcher, Developer, Reviewer
-— is given a real job: *find and fix the authentication vulnerability in this repository, add
-regression coverage, and verify the patch.* One worker reads a poisoned document. Everything after
-that is live: no script, no replay, no mocked results.
+The full flow: **collaboration → compromise → containment → reassignment → trusted replacement →
+verification → recovery.**
+
+A real WorkSwarm team — Repo Analyst, Security Researcher, Developer, Reviewer — is given a real
+job: *find and fix the authentication vulnerability in this repository, add regression coverage, and
+verify the patch.* One worker reads a poisoned document. Everything after that is live: no script,
+no replay, no mocked results.
 
 **Attack.** The Security Researcher reads `demo_target/docs/auth_notes.md`, which AgentShield
 legitimately released to it. Hijacked, the *model's own* `requested_files` now names
