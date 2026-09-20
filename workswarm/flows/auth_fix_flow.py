@@ -92,6 +92,11 @@ WORKER_SPECS = [
     {"id": REVIEWER, "role": "Reviewer", "upstream": [DEVELOPER]},
 ]
 
+WORKER_ROLES = {
+    **{spec["id"]: spec["role"] for spec in WORKER_SPECS},
+    REPLACEMENT_RESEARCHER: "Replacement Researcher",
+}
+
 #: How much of the researcher's analysis the Developer is given. Enough to
 #: state the finding; not so much that the model's token budget is spent
 #: reasoning about prose instead of writing the patch.
@@ -120,6 +125,20 @@ class RunContext:
     #: fail against the unpatched module?
     vulnerability_proven: bool = False
     baseline_failure_summary: str = ""
+
+    def trace_fields(self, worker_id: str | None = None, **extra: Any) -> dict[str, Any]:
+        """Safe identifiers shared by every WorkSwarm span."""
+        fields: dict[str, Any] = {
+            "run_id": self.client.session_id,
+            "session_id": self.client.session_id,
+            "model_backed": self.model_backed,
+        }
+        if worker_id is not None:
+            fields.update(worker_id=worker_id, role=WORKER_ROLES.get(worker_id, ""))
+        if self.model_backed:
+            fields.update(provider=self.model.provider, model=self.model.model_name)
+        fields.update(extra)
+        return fields
 
     def record_model_call(
         self, worker_id: str, *, latency_ms: int, prompt_chars: int, response_chars: int
@@ -212,7 +231,11 @@ class FetchForWorker(ContextComponent):
         # state splits dotted dict keys into nested dicts, so "auth.py" would
         # arrive downstream as {"auth": {"py": ...}}.
         documents: list[dict[str, str]] = []
-        with span("worker.fetch", self.span_name, worker_id=self.worker_id):
+        with span(
+            "workswarm.worker.fetch",
+            f"workswarm.{self.span_name}",
+            **self.ctx.trace_fields(self.worker_id, phase="fetch"),
+        ):
             for path in self.paths:
                 decision = self.ctx.client.request_resource(self.worker_id, path)
                 if decision.fail_closed:
@@ -246,7 +269,11 @@ class RunWorker(ContextComponent):
         }
 
         started = time.perf_counter()
-        with span("worker.run", self.span_name, worker_id=self.worker_id):
+        with span(
+            "workswarm.worker",
+            f"workswarm.{self.span_name}",
+            **self.ctx.trace_fields(self.worker_id, phase="analysis"),
+        ):
             raw = await _runnable(self.inner).invoke(payload, session, context)
         latency_ms = int((time.perf_counter() - started) * 1000)
 
@@ -396,7 +423,17 @@ class ReassignAndFetch(ContextComponent):
             "Investigate the authentication vulnerability from trusted context only. "
             "The previous researcher was quarantined and its output was discarded."
         )
-        with span("task.reassignment", "task.reassignment", to_worker=REPLACEMENT_RESEARCHER):
+        with span(
+            "swarm.task_reassigned",
+            "swarm.task_reassigned",
+            **self.ctx.trace_fields(
+                REPLACEMENT_RESEARCHER,
+                from_worker_id=SECURITY_RESEARCHER,
+                to_worker_id=REPLACEMENT_RESEARCHER,
+                replaces=SECURITY_RESEARCHER,
+                replacement_worker_id=REPLACEMENT_RESEARCHER,
+            ),
+        ):
             self.ctx.client.reassign(
                 from_worker_id=SECURITY_RESEARCHER,
                 to_worker={
@@ -421,7 +458,11 @@ class ReassignAndFetch(ContextComponent):
         # NOT receive demo_target/docs/auth_notes.md: that document is what
         # compromised its predecessor, and the poisoned text must not reach it.
         documents: list[dict[str, str]] = []
-        with span("worker.fetch", "replacement_researcher.fetch"):
+        with span(
+            "workswarm.worker.fetch",
+            "workswarm.replacement_researcher.fetch",
+            **self.ctx.trace_fields(REPLACEMENT_RESEARCHER, phase="fetch"),
+        ):
             decision = self.ctx.client.request_resource(REPLACEMENT_RESEARCHER, AUTH_MODULE)
             if decision.fail_closed:
                 self.ctx.fail_closed = True
