@@ -17,6 +17,7 @@ import logging
 import os
 import sys
 import time
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -169,11 +170,15 @@ def _preflight(client: AgentShieldClient) -> None:
 
 async def _run(started_at: float) -> int:
     # Kept lazy so _configure_logging runs before WorkSwarm imports initialize
-    # connector, vector-store and document-parser registries.
-    from openjiuwen.core.session import WORKFLOW_EXECUTE_TIMEOUT
-    from openjiuwen.core.workflow import create_workflow_session
+    # connector, vector-store and document-parser registries. WorkSwarm's
+    # optional integrations also import deprecated third-party APIs; hide only
+    # those import-time deprecation notices, not runtime or security warnings.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        from openjiuwen.core.session import WORKFLOW_EXECUTE_TIMEOUT
+        from openjiuwen.core.workflow import create_workflow_session
 
-    from workswarm.flows.auth_fix_flow import WORKER_SPECS, RunContext, build_flow
+        from workswarm.flows.auth_fix_flow import WORKER_SPECS, RunContext, build_flow
 
     model = resolve_model()
     model_backed = model.configured
