@@ -6,6 +6,7 @@ import workswarm.config as model_config
 from workswarm.config import NO_MODEL, ModelConfig, resolve_model, resolve_runpod_model
 from workswarm.replacement_provider import (
     ReplacementFailover,
+    provider_use_from_selection,
     select_replacement_provider,
     select_verified_replacement,
 )
@@ -45,6 +46,10 @@ def test_missing_runpod_preserves_the_sponsor_backed_p0_route():
     assert selected.model is sponsor
     assert selected.route == "sponsor_fallback"
     assert selected.fallback_used is True
+    actual_use = provider_use_from_selection(selected)
+    assert actual_use.model is sponsor
+    assert actual_use.route == "sponsor_fallback"
+    assert actual_use.fallback_used is True
 
 
 def test_no_provider_preserves_the_deterministic_p0_route():

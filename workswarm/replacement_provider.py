@@ -78,6 +78,16 @@ class ReplacementFailover:
         return result
 
 
+def provider_use_from_selection(selection: ReplacementProviderSelection) -> ProviderUse:
+    """Turn a preflight selection into the same shape as runtime failover."""
+    return ProviderUse(
+        model=selection.model,
+        route=selection.route,
+        fallback_used=selection.fallback_used,
+        reason=selection.reason,
+    )
+
+
 def select_replacement_provider(
     *,
     sponsor: ModelConfig,

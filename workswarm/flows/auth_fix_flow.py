@@ -42,7 +42,11 @@ from workswarm.config import (
     to_repo_relative,
 )
 from workswarm.patcher import write_in_sandbox
-from workswarm.replacement_provider import ProviderUse, ReplacementProviderSelection
+from workswarm.replacement_provider import (
+    ProviderUse,
+    ReplacementProviderSelection,
+    provider_use_from_selection,
+)
 from workswarm.telemetry import ManualSpan, log_event, span
 from workswarm.verify import run_demo_target_tests
 from workswarm.workers import (
@@ -139,24 +143,21 @@ class RunContext:
         A deterministic run records nothing, which is precisely what makes the
         presence of MODEL_REQUESTED/MODEL_RESPONDED events evidence.
         """
-        actual_model = provider_use.model if provider_use is not None else self.model
+        actual_use = provider_use
         if worker_id == REPLACEMENT_RESEARCHER:
-            self.replacement_use = provider_use or ProviderUse(
-                model=actual_model,
-                route=self.replacement.route,
-                fallback_used=self.replacement.fallback_used,
-                reason=self.replacement.reason,
-            )
+            actual_use = provider_use or provider_use_from_selection(self.replacement)
+            self.replacement_use = actual_use
+        actual_model = actual_use.model if actual_use is not None else self.model
         if not actual_model.configured:
             return
         provider = (
             "runpod/vllm"
-            if provider_use and provider_use.route == "runpod"
+            if actual_use and actual_use.route == "runpod"
             else actual_model.provider
         )
-        route = provider_use.route if provider_use is not None else "sponsor"
-        fallback_used = provider_use.fallback_used if provider_use is not None else False
-        fallback_reason = provider_use.reason if provider_use and provider_use.fallback_used else ""
+        route = actual_use.route if actual_use is not None else "sponsor"
+        fallback_used = actual_use.fallback_used if actual_use is not None else False
+        fallback_reason = actual_use.reason if actual_use and actual_use.fallback_used else ""
         self.client.record_model_call(
             worker_id,
             provider=provider,
