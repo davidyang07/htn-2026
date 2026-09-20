@@ -33,6 +33,15 @@ class ProbeResult:
     detail: str
 
 
+@dataclass(frozen=True)
+class ModelsResult:
+    """Result of verifying that vLLM advertises the configured model."""
+
+    probe: ProbeResult
+    model_ids: tuple[str, ...]
+    expected_model_found: bool
+
+
 def endpoint_urls(base_url: str) -> EndpointUrls:
     """Normalize either a vLLM service root or its ``/v1`` API base.
 
@@ -107,4 +116,59 @@ class RunPodVerifier:
             status_code=response.status_code,
             latency_ms=int((time.perf_counter() - started) * 1000),
             detail="healthy" if response.status_code == 200 else "unexpected HTTP status",
+        )
+
+    def probe_models(self) -> ModelsResult:
+        """GET ``/v1/models`` and require the configured model id."""
+        started = time.perf_counter()
+        try:
+            response = self._client.get(self.urls.models)
+        except httpx.RequestError as exc:
+            return ModelsResult(
+                probe=ProbeResult(
+                    name="models",
+                    ok=False,
+                    status_code=None,
+                    latency_ms=int((time.perf_counter() - started) * 1000),
+                    detail=f"request failed ({type(exc).__name__})",
+                ),
+                model_ids=(),
+                expected_model_found=False,
+            )
+
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        if response.status_code != 200:
+            return ModelsResult(
+                probe=ProbeResult(
+                    name="models",
+                    ok=False,
+                    status_code=response.status_code,
+                    latency_ms=elapsed_ms,
+                    detail="unexpected HTTP status",
+                ),
+                model_ids=(),
+                expected_model_found=False,
+            )
+
+        try:
+            payload = response.json()
+            rows = payload["data"]
+            model_ids = tuple(
+                str(row["id"]) for row in rows if isinstance(row, dict) and row.get("id")
+            )
+        except (KeyError, TypeError, ValueError):
+            model_ids = ()
+
+        expected = self.model.model_name in model_ids
+        detail = "configured model advertised" if expected else "configured model not advertised"
+        return ModelsResult(
+            probe=ProbeResult(
+                name="models",
+                ok=expected,
+                status_code=response.status_code,
+                latency_ms=elapsed_ms,
+                detail=detail,
+            ),
+            model_ids=model_ids,
+            expected_model_found=expected,
         )

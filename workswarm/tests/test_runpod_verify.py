@@ -74,3 +74,41 @@ def test_health_probe_reports_connection_failure_without_credentials():
     assert result.status_code is None
     assert result.detail == "request failed (ConnectError)"
     assert "test-token" not in repr(result)
+
+
+def test_models_probe_requires_the_configured_model():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v1/models"
+        return httpx.Response(
+            200,
+            json={
+                "object": "list",
+                "data": [
+                    {"id": "Qwen/Qwen2.5-Coder-7B-Instruct", "object": "model"},
+                    {"id": "another-model", "object": "model"},
+                ],
+            },
+        )
+
+    verifier = RunPodVerifier(_model(), client=httpx.Client(transport=httpx.MockTransport(handler)))
+    result = verifier.probe_models()
+
+    assert result.probe.ok is True
+    assert result.expected_model_found is True
+    assert result.model_ids == ("Qwen/Qwen2.5-Coder-7B-Instruct", "another-model")
+
+
+def test_models_probe_rejects_wrong_or_malformed_catalog():
+    responses = [
+        httpx.Response(200, json={"data": [{"id": "wrong-model"}]}),
+        httpx.Response(200, json={"unexpected": []}),
+        httpx.Response(503),
+    ]
+    for response in responses:
+        verifier = RunPodVerifier(
+            _model(),
+            client=httpx.Client(transport=httpx.MockTransport(lambda _: response)),
+        )
+        result = verifier.probe_models()
+        assert result.probe.ok is False
+        assert result.expected_model_found is False
