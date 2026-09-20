@@ -22,7 +22,7 @@ def _test_result(result: TestEvidence | None, *, missing: str) -> str:
     return f"{outcome}{exit_code}: {result.summary}"
 
 
-def _body(sections: ExplanationSections) -> str:
+def format_sections(sections: ExplanationSections) -> str:
     return "\n\n".join(
         (
             f"What happened? {sections.what_happened}",
@@ -91,7 +91,7 @@ def deterministic_explanation(evidence: IncidentEvidence | None) -> IncidentExpl
         label=DETERMINISTIC_LABEL,
         authority=SECURITY_AUTHORITY,
         headline="Protected resource request denied by deterministic policy.",
-        body=_body(sections),
+        body=format_sections(sections),
         sections=sections,
         evidence=evidence,
     )
