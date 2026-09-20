@@ -115,3 +115,76 @@ The JSON fields to copy back into the deployment record are
 `cold_start_ms`, `first_completion.latency_ms`, and
 `warm_completion.latency_ms`. Exit status is `0` only when all required checks
 pass, `1` for an unhealthy endpoint, and `2` when RunPod is not configured.
+
+## Selection and fallback runbook
+
+RunPod is considered healthy only when all four observations pass: health,
+configured model advertised, first completion, and warm completion. Selection
+then applies this matrix:
+
+| RunPod state | Replacement Researcher | Event metadata |
+| --- | --- | --- |
+| Configured and all checks pass | RunPod/vLLM | `provider_route=runpod`, `fallback_used=false` |
+| Missing | Normal sponsor model | `provider_route=sponsor_fallback`, `fallback_used=true` |
+| Connection refused/unreachable | Normal sponsor model | `provider_route=sponsor_fallback`, `fallback_used=true` |
+| Probe timeout | Normal sponsor model | `provider_route=sponsor_fallback`, `fallback_used=true` |
+| Wrong model or malformed response | Normal sponsor model | `provider_route=sponsor_fallback`, `fallback_used=true` |
+| Fails after preflight | Retry once on the normal sponsor model | Actual answering provider is recorded |
+| RunPod and sponsor both absent | Existing deterministic stand-in | No model-call event is emitted |
+
+The original Security Researcher, Repo Analyst, Developer, and Reviewer never
+move to RunPod. A provider returns text only. It cannot decide allow/deny,
+quarantine a worker, change trust state, read a resource, or seed replacement
+context. Those operations remain in AgentShield's deterministic policy and
+runtime session.
+
+When diagnosing a fallback:
+
+1. Run `make runpod-check` and retain the credential-free JSON.
+2. If `health.ok` is false, inspect the new Pod's container log in the RunPod
+   console. Do not use or modify either ComfyUI Pod.
+3. If `models.expected_model_found` is false, make
+   `RUNPOD_MODEL_NAME` exactly match `/v1/models` and `--served-model-name`.
+4. If chat fails, verify port `8000/http`, the `VLLM_API_KEY` environment
+   value, and that the selected image finished loading weights.
+5. Leave fallback enabled. Do not bypass verification or route a provider into
+   AgentShield's policy APIs to make a demo turn green.
+
+## Restart before judging
+
+A stopped Pod is intentionally treated as unavailable. Before deciding the
+integration is broken:
+
+1. In RunPod, locate the **new Pod id recorded for this stream**, not either
+   pre-existing ComfyUI Pod.
+2. Start that Pod in the console. Starting it is billable and requires the
+   account's normal explicit approval.
+3. Immediately run:
+
+   ```bash
+   RUNPOD_CHECK_WAIT_SECONDS=900 make runpod-check
+   ```
+
+4. Wait for `ready: true`; record cold, first, and warm timings in the table at
+   the top of this document.
+5. Run the demo and confirm the Replacement Researcher's model events say
+   `provider_route=runpod`. If they say `sponsor_fallback`, report fallback—not
+   RunPod success.
+
+No local SSH is part of this procedure.
+
+## Shutdown
+
+After smoke testing, stop the newly created Pod from its RunPod console page.
+Record its exact id and final state in the deployment table. If using
+`runpodctl`, resolve and visually verify that exact new id first, then run only:
+
+```bash
+runpodctl pod stop <new-pod-id>
+```
+
+Never run a bulk stop/delete command and never substitute either existing
+ComfyUI Pod id. Stopping preserves the Pod for a later demo; delete only when
+the owner explicitly chooses to remove this stream's new resource. Re-run
+`make runpod-check` after stopping: an unhealthy result plus sponsor fallback
+is the expected, functional P0 state.
