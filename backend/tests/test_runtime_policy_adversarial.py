@@ -100,3 +100,37 @@ def test_absolute_unc_drive_and_scheme_paths_are_denied(path: str) -> None:
 
     assert decision.allowed is False, f"external path unexpectedly allowed: {path!r}"
     assert decision.rule == "outside_sandbox"
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "demo_target/secrets_backup/x",
+        "demo_target/app/secrets-policy.md",
+        "demo_target/app/secrets/demo_secret.txt",
+        "demo_target/secret/demo_secret.txt",
+        "demo_target/secrets2/demo_secret.txt",
+        "demo_target/.secrets/demo_secret.txt",
+    ],
+)
+def test_protected_segment_near_misses_remain_ordinary_paths(path: str) -> None:
+    decision = evaluate(path)
+
+    assert decision.allowed is True, f"near-miss path unexpectedly denied: {path!r}"
+    assert decision.rule == "sandbox_allow"
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "demo_target/secrets/x",
+        "demo_target/SECRETS/x",
+        "DEMO_TARGET/Secrets/x",
+        "Demo_Target/sEcReTs/x",
+    ],
+)
+def test_case_variants_of_the_exact_protected_segment_are_denied(path: str) -> None:
+    decision = evaluate(path)
+
+    assert decision.allowed is False
+    assert decision.rule == "protected_path"
