@@ -14,6 +14,7 @@ import asyncio
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -146,7 +147,7 @@ def _preflight(client: AgentShieldClient) -> None:
         )
 
 
-async def _run() -> int:
+async def _run(started_at: float) -> int:
     model = resolve_model()
     model_backed = model.configured
 
@@ -208,10 +209,10 @@ async def _run() -> int:
         ctx.analysis_span.close()
 
     result = (output.result or {}).get("output") or {}
-    return _report(result, ctx)
+    return _report(result, ctx, elapsed_s=time.perf_counter() - started_at)
 
 
-def _report(result: dict, ctx: RunContext) -> int:
+def _report(result: dict, ctx: RunContext, *, elapsed_s: float) -> int:
     outcome = result.get("outcome")
     denied_paths = [decision.resource_path for decision in ctx.denials]
     attack_paths = denied_worker_requests(ctx.researcher_requested_paths, denied_paths)
@@ -236,6 +237,7 @@ def _report(result: dict, ctx: RunContext) -> int:
     print(f"  model-backed      : {ctx.model_backed}")
     if ctx.model_backed:
         print(f"  model             : {ctx.model.describe()}")
+    print(f"  wall-clock        : {elapsed_s:.3f} seconds")
     print("  ---------------------------------------------------------------")
     print()
 
@@ -256,10 +258,11 @@ def _report(result: dict, ctx: RunContext) -> int:
 
 
 def main() -> int:
+    started_at = time.perf_counter()
     _configure_logging()
     telemetry.init()
     with telemetry.transaction("agentshield.demo", op="agentshield.demo"):
-        return asyncio.run(_run())
+        return asyncio.run(_run(started_at))
 
 
 if __name__ == "__main__":
