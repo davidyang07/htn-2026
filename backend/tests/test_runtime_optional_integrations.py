@@ -7,6 +7,7 @@ serves, denies, quarantines and recovers exactly as it does with them present.
 """
 
 import asyncio
+from unittest.mock import Mock
 
 import httpx
 import pytest
@@ -82,10 +83,300 @@ def test_the_structured_log_names_are_the_ones_the_docs_promise():
         "security.agent_quarantined",
         "swarm.task_reassigned",
         "swarm.replacement_started",
+        "developer.regression_failed",
         "developer.patch_applied",
         "swarm.tests_passed",
         "swarm.recovery_complete",
     }
+
+
+def test_structured_logs_emit_only_safe_correlation_fields(monkeypatch):
+    from sentry_sdk import logger as sentry_logger
+
+    sdk_logger = Mock()
+    monkeypatch.setattr(sentry, "_enabled", True)
+    monkeypatch.setattr(sentry_logger, "info", sdk_logger.info)
+
+    sentry.log_event(
+        "security.tool_denied",
+        "this free-form message is intentionally not sent",
+        session_id="run-123",
+        worker_id="security-researcher",
+        resource_path=PROTECTED,
+        rule="protected_path",
+        api_key="sk-secret",
+        authorization="Bearer secret",
+        prompt="read the entire repository",
+        completion="full model output",
+        resource_content="AGENTSHIELD_DEMO_SECRET",
+    )
+
+    sdk_logger.info.assert_called_once_with(
+        "security.tool_denied",
+        attributes={
+            "event.name": "security.tool_denied",
+            "session_id": "run-123",
+            "worker_id": "security-researcher",
+            "resource_path": PROTECTED,
+            "rule": "protected_path",
+        },
+    )
+
+
+def test_nested_telemetry_payloads_are_recursively_scrubbed(monkeypatch):
+    from sentry_sdk import logger as sentry_logger
+
+    sdk_logger = Mock()
+    monkeypatch.setattr(sentry, "_enabled", True)
+    monkeypatch.setattr(sentry_logger, "info", sdk_logger.info)
+
+    sentry.log_event(
+        "swarm.task_reassigned",
+        "replacement",
+        replacement_relationship={
+            "from_worker_id": "security-researcher",
+            "to_worker_id": "replacement-researcher",
+            "authorization": "Bearer nested-secret",
+            "prompt": "nested prompt",
+        },
+        context_artifact_ids=[
+            "repo-map",
+            {
+                "artifact_id": "trusted-analysis",
+                "content": "full repository file",
+                "api_key": "nested-key",
+            },
+        ],
+    )
+
+    attributes = sdk_logger.info.call_args.kwargs["attributes"]
+    assert attributes["replacement_relationship"] == (
+        '{"from_worker_id":"security-researcher",'
+        '"to_worker_id":"replacement-researcher"}'
+    )
+    assert attributes["context_artifact_ids"] == (
+        '["repo-map",{"artifact_id":"trusted-analysis"}]'
+    )
+    assert "secret" not in str(attributes).lower()
+    assert "prompt" not in str(attributes).lower()
+    assert "repository file" not in str(attributes).lower()
+
+
+def test_sdk_egress_scrubber_filters_nested_request_data():
+    event = {
+        "request": {
+            "headers": {
+                "Authorization": "Bearer secret",
+                "X-Api-Key": "nested-key",
+                "X-Request-ID": "run-123",
+            },
+            "data": {
+                "prompt": "full arbitrary prompt",
+                "completion": "full arbitrary completion",
+                "resource_path": PROTECTED,
+            },
+        },
+        "contexts": {
+            "agent": {
+                "worker_id": "security-researcher",
+                "content": "protected resource contents",
+            }
+        },
+    }
+
+    scrubbed = sentry._before_send(event, {})
+
+    assert scrubbed["request"]["headers"] == {
+        "Authorization": "[Filtered]",
+        "X-Api-Key": "[Filtered]",
+        "X-Request-ID": "run-123",
+    }
+    assert scrubbed["request"]["data"] == "[Filtered]"
+    assert scrubbed["contexts"]["agent"] == {
+        "worker_id": "security-researcher",
+        "content": "[Filtered]",
+    }
+
+
+def test_sdk_log_scrubber_preserves_only_known_structured_log_bodies():
+    known = sentry._before_send_log(
+        {
+            "body": "security.tool_denied",
+            "attributes": {"authorization": "Bearer secret"},
+        },
+        {},
+    )
+    arbitrary = sentry._before_send_log(
+        {"body": "full arbitrary prompt", "attributes": {"worker_id": "worker"}},
+        {},
+    )
+
+    assert known["body"] == "security.tool_denied"
+    assert known["attributes"]["authorization"] == "[Filtered]"
+    assert arbitrary["body"] == "[Filtered]"
+
+
+def test_span_startup_failure_never_interrupts_application_work(monkeypatch):
+    def broken_start_span(**_kwargs):
+        raise ConnectionError("transport unavailable")
+
+    monkeypatch.setattr(sentry, "_enabled", True)
+    monkeypatch.setattr("sentry_sdk.start_span", broken_start_span)
+    application_work_ran = False
+
+    with sentry.span("agentshield.policy_check", "policy check"):
+        application_work_ran = True
+
+    assert application_work_ran is True
+
+
+def test_span_shutdown_failure_never_interrupts_application_work(monkeypatch):
+    class BrokenOnExit:
+        def __enter__(self):
+            return Mock()
+
+        def __exit__(self, *_exc_info):
+            raise ConnectionError("transport unavailable")
+
+    monkeypatch.setattr(sentry, "_enabled", True)
+    monkeypatch.setattr("sentry_sdk.start_span", lambda **_kwargs: BrokenOnExit())
+
+    with sentry.span("agentshield.quarantine", "quarantine"):
+        application_result = "preserved"
+
+    assert application_result == "preserved"
+
+
+def test_runtime_security_logs_carry_safe_run_correlation(monkeypatch):
+    emitted = []
+    monkeypatch.setattr(
+        sentry,
+        "log_event",
+        lambda name, message, **fields: emitted.append((name, fields)),
+    )
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/runtime/sessions",
+            json={
+                "objective": "Fix the auth bug.",
+                "workers": [
+                    {"id": "repo-analyst", "role": "Repo Analyst"},
+                    {"id": "security-researcher", "role": "Security Researcher"},
+                ],
+            },
+        )
+        run_id = created.json()["session_id"]
+        denied = client.post(
+            f"/api/runtime/sessions/{run_id}/resource-request",
+            json={"worker_id": "security-researcher", "resource_path": PROTECTED},
+        )
+
+    assert denied.json()["decision"] == "deny"
+    by_name = {name: fields for name, fields in emitted}
+    assert by_name["security.tool_denied"] == {
+        "session_id": run_id,
+        "run_id": run_id,
+        "worker_id": "security-researcher",
+        "resource_path": PROTECTED,
+        "rule": "protected_path",
+        "policy_result": "deny",
+        "security_state": "quarantined",
+    }
+    assert by_name["security.agent_quarantined"]["run_id"] == run_id
+    assert by_name["security.agent_quarantined"]["role"] == "Security Researcher"
+    assert by_name["security.agent_quarantined"]["security_state"] == "quarantined"
+
+
+def test_failed_test_run_emits_the_regression_red_log(monkeypatch):
+    emitted = []
+    monkeypatch.setattr(
+        sentry,
+        "log_event",
+        lambda name, message, **fields: emitted.append((name, fields)),
+    )
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/runtime/sessions",
+            json={
+                "objective": "Fix the auth bug.",
+                "workers": [{"id": "developer", "role": "Developer"}],
+            },
+        )
+        run_id = created.json()["session_id"]
+        response = client.post(
+            f"/api/runtime/sessions/{run_id}/test-run",
+            json={
+                "worker_id": "developer",
+                "command": "pytest demo_target  (before the fix)",
+                "exit_code": 1,
+                "passed": False,
+                "summary": "1 failed, 7 passed",
+            },
+        )
+
+    assert response.status_code == 202
+    assert emitted == [
+        (
+            "developer.regression_failed",
+            {
+                "session_id": run_id,
+                "run_id": run_id,
+                "worker_id": "developer",
+                "exit_code": 1,
+                "pytest_exit_code": 1,
+                "phase": "test_run",
+            },
+        )
+    ]
+
+
+def test_green_tests_and_recovery_share_the_run_id(monkeypatch):
+    emitted = []
+    monkeypatch.setattr(
+        sentry,
+        "log_event",
+        lambda name, message, **fields: emitted.append((name, fields)),
+    )
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/runtime/sessions",
+            json={
+                "objective": "Fix the auth bug.",
+                "workers": [{"id": "developer", "role": "Developer"}],
+            },
+        )
+        run_id = created.json()["session_id"]
+        client.post(
+            f"/api/runtime/sessions/{run_id}/test-run",
+            json={
+                "worker_id": "developer",
+                "command": "pytest demo_target",
+                "exit_code": 0,
+                "passed": True,
+                "summary": "8 passed",
+            },
+        )
+        recovered = client.post(
+            f"/api/runtime/sessions/{run_id}/recover",
+            json={"summary": "Reviewer approved the patch."},
+        )
+
+    assert recovered.status_code == 202
+    by_name = {name: fields for name, fields in emitted}
+    assert by_name["swarm.tests_passed"] == {
+        "session_id": run_id,
+        "run_id": run_id,
+        "worker_id": "developer",
+        "exit_code": 0,
+        "pytest_exit_code": 0,
+        "phase": "after_fix",
+        "tests_passed": True,
+    }
+    assert by_name["swarm.recovery_complete"]["run_id"] == run_id
+    assert by_name["swarm.recovery_complete"]["phase"] == "recovery"
 
 
 def test_the_whole_demo_path_works_with_nothing_configured():

@@ -94,6 +94,16 @@ WORKER_SPECS = [
     {"id": REVIEWER, "role": "Reviewer", "upstream": [DEVELOPER]},
 ]
 
+WORKER_ROLES = {
+    **{spec["id"]: spec["role"] for spec in WORKER_SPECS},
+    REPLACEMENT_RESEARCHER: "Replacement Researcher",
+}
+
+#: How much of the researcher's analysis the Developer is given. Enough to
+#: state the finding; not so much that the model's token budget is spent
+#: reasoning about prose instead of writing the patch.
+MAX_ANALYSIS_CHARS = 1500
+
 REGRESSION_TEST_PATH = "tests/test_auth_regression.py"
 AUTH_MODULE_PATH = "app/auth.py"
 
@@ -120,6 +130,20 @@ class RunContext:
     researcher_requested_paths: list[str] = field(default_factory=list)
     trusted_artifact_ids: list[str] = field(default_factory=list)
     tainted_artifact_ids: list[str] = field(default_factory=list)
+
+    def trace_fields(self, worker_id: str | None = None, **extra: Any) -> dict[str, Any]:
+        """Safe identifiers shared by every WorkSwarm span."""
+        fields: dict[str, Any] = {
+            "run_id": self.client.session_id,
+            "session_id": self.client.session_id,
+            "model_backed": self.model_backed,
+        }
+        if worker_id is not None:
+            fields.update(worker_id=worker_id, role=WORKER_ROLES.get(worker_id, ""))
+        if self.model_backed:
+            fields.update(provider=self.model.provider, model=self.model.model_name)
+        fields.update(extra)
+        return fields
 
     def record_model_call(
         self, worker_id: str, *, latency_ms: int, prompt_chars: int, response_chars: int
@@ -212,7 +236,11 @@ class FetchForWorker(ContextComponent):
         # state splits dotted dict keys into nested dicts, so "auth.py" would
         # arrive downstream as {"auth": {"py": ...}}.
         documents: list[dict[str, str]] = []
-        with span("worker.fetch", self.span_name, worker_id=self.worker_id):
+        with span(
+            "workswarm.worker.fetch",
+            f"workswarm.{self.span_name}",
+            **self.ctx.trace_fields(self.worker_id, phase="fetch"),
+        ):
             for path in self.paths:
                 decision = self.ctx.client.request_resource(self.worker_id, path)
                 if decision.fail_closed:
@@ -246,7 +274,11 @@ class RunWorker(ContextComponent):
         }
 
         started = time.perf_counter()
-        with span("worker.run", self.span_name, worker_id=self.worker_id):
+        with span(
+            "workswarm.worker",
+            f"workswarm.{self.span_name}",
+            **self.ctx.trace_fields(self.worker_id, phase="analysis"),
+        ):
             raw = await _runnable(self.inner).invoke(payload, session, context)
         latency_ms = int((time.perf_counter() - started) * 1000)
 
@@ -344,10 +376,17 @@ class ShieldGate(ContextComponent):
             self.ctx.denials.append(decision)
             log_event(
                 "security.tool_denied",
-                f"AgentShield denied {SECURITY_RESEARCHER} -> {path}",
-                worker_id=SECURITY_RESEARCHER,
-                resource_path=path,
-                rule=decision.rule,
+                "AgentShield denied a protected resource request",
+                **self.ctx.trace_fields(
+                    SECURITY_RESEARCHER,
+                    event_type="policy_check",
+                    resource_path=path,
+                    rule=decision.rule,
+                    policy_result="deny",
+                    security_state=(
+                        "quarantined" if decision.quarantined else "active"
+                    ),
+                ),
             )
             if decision.quarantined:
                 quarantined = True
@@ -366,8 +405,11 @@ class ShieldGate(ContextComponent):
             log_event(
                 "security.agent_quarantined",
                 "Security Researcher quarantined; its output is untrusted",
-                worker_id=SECURITY_RESEARCHER,
-                requested_files=requested,
+                **self.ctx.trace_fields(
+                    SECURITY_RESEARCHER,
+                    security_state="quarantined",
+                    requested_files=requested,
+                ),
             )
 
         return {
@@ -399,7 +441,17 @@ class ReassignAndFetch(ContextComponent):
             "Investigate the authentication vulnerability from trusted context only. "
             "The previous researcher was quarantined and its output was discarded."
         )
-        with span("task.reassignment", "task.reassignment", to_worker=REPLACEMENT_RESEARCHER):
+        with span(
+            "swarm.task_reassigned",
+            "swarm.task_reassigned",
+            **self.ctx.trace_fields(
+                REPLACEMENT_RESEARCHER,
+                from_worker_id=SECURITY_RESEARCHER,
+                to_worker_id=REPLACEMENT_RESEARCHER,
+                replaces=SECURITY_RESEARCHER,
+                replacement_worker_id=REPLACEMENT_RESEARCHER,
+            ),
+        ):
             self.ctx.client.reassign(
                 from_worker_id=SECURITY_RESEARCHER,
                 to_worker={
@@ -416,15 +468,24 @@ class ReassignAndFetch(ContextComponent):
         log_event(
             "swarm.replacement_started",
             "Replacement Researcher started with trusted context only",
-            worker_id=REPLACEMENT_RESEARCHER,
-            trusted_artifacts=trusted,
+            **self.ctx.trace_fields(
+                REPLACEMENT_RESEARCHER,
+                replaces=SECURITY_RESEARCHER,
+                replacement_worker_id=REPLACEMENT_RESEARCHER,
+                security_state="active",
+                trusted_artifacts=trusted,
+            ),
         )
 
         # The replacement re-reads the module for itself. It deliberately does
         # NOT receive demo_target/docs/auth_notes.md: that document is what
         # compromised its predecessor, and the poisoned text must not reach it.
         documents: list[dict[str, str]] = []
-        with span("worker.fetch", "replacement_researcher.fetch"):
+        with span(
+            "workswarm.worker.fetch",
+            "workswarm.replacement_researcher.fetch",
+            **self.ctx.trace_fields(REPLACEMENT_RESEARCHER, phase="fetch"),
+        ):
             decision = self.ctx.client.request_resource(REPLACEMENT_RESEARCHER, AUTH_MODULE)
             if decision.fail_closed:
                 self.ctx.fail_closed = True
@@ -483,7 +544,11 @@ class DeveloperStep(ContextComponent):
                 f"the Developer could not obtain {AUTH_MODULE}: {decision.reason}"
             )
 
-        with span("developer.patch", "developer.patch", worker_id=DEVELOPER):
+        with span(
+            "developer.regression_test",
+            "developer.regression_test",
+            **self.ctx.trace_fields(DEVELOPER, phase="author_regression"),
+        ):
             started = time.perf_counter()
             # Trimmed on purpose. A reasoning model spends its token budget
             # on thinking before it emits anything, and a verbose upstream
@@ -532,7 +597,11 @@ class ProveVulnerabilityStep(ContextComponent):
     """
 
     async def invoke(self, inputs: Any, session: Any, context: Any) -> Any:
-        with span("pytest.run", "pytest.baseline_regression"):
+        with span(
+            "developer.regression_red",
+            "developer.regression_red",
+            **self.ctx.trace_fields(DEVELOPER, phase="before_fix"),
+        ):
             result = run_demo_target_tests()
 
         proven = not result.passed
@@ -558,17 +627,18 @@ class ProveVulnerabilityStep(ContextComponent):
                 )
             ),
         )
-        log_event(
-            "developer.patch_applied",
-            (
-                f"Regression test fails against the vulnerable module: {result.summary}"
-                if proven
-                else "Regression test did not fail against the vulnerable module"
-            ),
-            worker_id=DEVELOPER,
-            phase="before_fix",
-            vulnerability_proven=proven,
-        )
+        if proven:
+            log_event(
+                "developer.regression_failed",
+                "Regression test failed against the vulnerable module",
+                **self.ctx.trace_fields(
+                    DEVELOPER,
+                    exit_code=result.exit_code,
+                    pytest_exit_code=result.exit_code,
+                    phase="before_fix",
+                    vulnerability_proven=True,
+                ),
+            )
 
         return {
             "vulnerability_proven": proven,
@@ -593,16 +663,22 @@ class ApplyPatchStep(ContextComponent):
                 "against the unpatched module, so there is nothing proven to fix"
             )
 
-        with span("developer.patch", "developer.apply_patch", worker_id=DEVELOPER):
+        with span(
+            "developer.patch",
+            "developer.patch",
+            **self.ctx.trace_fields(DEVELOPER, phase="fix"),
+        ):
             written = write_in_sandbox(AUTH_MODULE_PATH, patched_source)
 
         self.ctx.client.complete_task(DEVELOPER, "patch", explanation)
         log_event(
             "developer.patch_applied",
-            explanation,
-            worker_id=DEVELOPER,
-            phase="fix",
-            files_written=[written],
+            "Developer patch applied",
+            **self.ctx.trace_fields(
+                DEVELOPER,
+                phase="fix",
+                files_written=[written],
+            ),
         )
         return {
             "patched_source": patched_source,
@@ -685,7 +761,11 @@ class PytestStep(ContextComponent):
     """
 
     async def invoke(self, inputs: Any, session: Any, context: Any) -> Any:
-        with span("pytest.run", "pytest.after_fix"):
+        with span(
+            "pytest.after_fix",
+            "pytest.after_fix",
+            **self.ctx.trace_fields(DEVELOPER, phase="after_fix"),
+        ):
             result = run_demo_target_tests()
 
         self.ctx.client.record_test_run(
@@ -698,8 +778,14 @@ class PytestStep(ContextComponent):
         if result.passed:
             log_event(
                 "swarm.tests_passed",
-                f"{result.command}: {result.summary}",
-                exit_code=result.exit_code,
+                "Regression suite passed after the fix",
+                **self.ctx.trace_fields(
+                    DEVELOPER,
+                    exit_code=result.exit_code,
+                    pytest_exit_code=result.exit_code,
+                    phase="after_fix",
+                    tests_passed=True,
+                ),
             )
         else:
             logger.error("tests did NOT pass: %s\n%s", result.summary, result.tail)
@@ -724,7 +810,11 @@ class ReviewerStep(ContextComponent):
         task = "Independently verify the patch against the test evidence."
         self.ctx.client.start_task(REVIEWER, task)
 
-        with span("reviewer.verify", "reviewer.verify", worker_id=REVIEWER):
+        with span(
+            "reviewer.verify",
+            "reviewer.verify",
+            **self.ctx.trace_fields(REVIEWER, phase="review"),
+        ):
             started = time.perf_counter()
             produced = await _runnable(self.inner).invoke(
                 {
@@ -779,15 +869,27 @@ class FinishStep(ContextComponent):
             vulnerability_proven=self.ctx.vulnerability_proven,
             quarantined=self.ctx.quarantined_worker is not None,
         ):
-            self.ctx.client.recover(
-                f"{summary_text} The team completed the task despite one worker "
-                "being compromised mid-run."
-            )
+            with span(
+                "swarm.recovery_complete",
+                "swarm.recovery_complete",
+                **self.ctx.trace_fields(
+                    phase="recovery",
+                    tests_passed=True,
+                    quarantined_worker=self.ctx.quarantined_worker,
+                ),
+            ):
+                self.ctx.client.recover(
+                    f"{summary_text} The team completed the task despite one worker "
+                    "being compromised mid-run."
+                )
             log_event(
                 "swarm.recovery_complete",
-                summary_text,
-                tests_passed=tests_passed,
-                quarantined_worker=self.ctx.quarantined_worker,
+                "Swarm recovery completed",
+                **self.ctx.trace_fields(
+                    phase="recovery",
+                    tests_passed=tests_passed,
+                    quarantined_worker=self.ctx.quarantined_worker,
+                ),
             )
             outcome = "recovered"
         else:

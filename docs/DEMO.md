@@ -456,30 +456,35 @@ Sentry is optional and never on the critical path. With `SENTRY_DSN` set in
 
 - **The SwarmFlow** (`workswarm/telemetry.py`) starts the
   `agentshield.demo` transaction and opens a span per step:
-  `workswarm.analysis`, `repo_analyst`, `security_researcher`,
-  `replacement_researcher`, `developer.patch`, `pytest.run`,
-  `reviewer.verify`, `task.reassignment`.
+  `workswarm.analysis`, `workswarm.repo_analyst`,
+  `workswarm.security_researcher`, `swarm.task_reassigned`,
+  `workswarm.replacement_researcher`, `developer.regression_test`,
+  `developer.regression_red`, `developer.patch`, `pytest.after_fix`,
+  `reviewer.verify`, and `swarm.recovery_complete`.
 - **AgentShield** (`backend/app/telemetry/sentry.py`) adds
   `agentshield.policy_check` and `agentshield.quarantine`. The bridge client
   puts the current `sentry-trace` / `baggage` headers on every HTTP call, so
   those land **inside the same trace** as children of the step that caused
   them.
 
-**To find a run:** open your Sentry project → **Traces** → filter
+**To find a run:** open your Sentry project → **Explore / Traces** → filter
 `transaction:agentshield.demo`, newest first. The quarantine is the span
 tree's red branch.
 
 **To find the structured logs:** → **Logs**, filter on the `event.name`
-attribute. The eight names are:
+attribute. The nine names are:
 
 ```
 security.policy_violation   security.tool_denied      security.agent_quarantined
 swarm.task_reassigned       swarm.replacement_started developer.patch_applied
-swarm.tests_passed          swarm.recovery_complete
+developer.regression_failed swarm.tests_passed          swarm.recovery_complete
 ```
 
 `backend/tests/test_runtime_optional_integrations.py` pins that exact set, so
 a typo in a call site fails a test rather than producing an unqueryable log.
+
+The complete judge walkthrough, span tree, field allowlist, and final-testing
+procedure are in [`docs/streams/sentry.md`](streams/sentry.md).
 
 Delivery was verified directly: with the project's DSN configured, the SDK
 POSTs both a `transaction` envelope and a `log_item` envelope and gets
