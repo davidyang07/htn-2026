@@ -4,16 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AttackBanner } from "@/components/demo/AttackBanner";
 import { ContainmentPanel } from "@/components/demo/ContainmentPanel";
-import { NarrativeTimeline } from "@/components/demo/NarrativeTimeline";
-import { TestEvidencePanel } from "@/components/demo/TestEvidencePanel";
 import { IncidentStage } from "@/components/demo/IncidentStage";
+import { NarrativeTimeline } from "@/components/demo/NarrativeTimeline";
 import { RunHeader } from "@/components/demo/RunHeader";
 import { Section } from "@/components/demo/Section";
+import { TestEvidencePanel } from "@/components/demo/TestEvidencePanel";
+import { VerdictStrip } from "@/components/demo/VerdictStrip";
 import { Badge, SeverityDot } from "@/components/ui/Badge";
 import { IconSpark } from "@/components/ui/icons";
 import { Panel, PanelHeader } from "@/components/ui/Panel";
 import { EmptyState, ErrorState } from "@/components/ui/States";
-import { cn } from "@/lib/cn";
 import {
   NoLiveSessionError,
   getCurrentRuntimeSession,
@@ -23,13 +23,12 @@ import {
   type RuntimeSessionSummary,
 } from "@/lib/runtime/client";
 import { runWindow } from "@/lib/runtime/clock";
-import { deriveProvenance } from "@/lib/runtime/provenance";
 import { deriveIncident } from "@/lib/runtime/incident";
+import { deriveProvenance } from "@/lib/runtime/provenance";
 import { buildStage } from "@/lib/runtime/stage";
 import { deriveTestEvidence } from "@/lib/runtime/testRuns";
 import { useRuntimeStream } from "@/lib/runtime/useRuntimeStream";
-import { deriveVerdict, verdictLights, type VerdictLight } from "@/lib/runtime/verdict";
-import { SEVERITY_TEXT, type Severity } from "@/lib/severity";
+import { deriveVerdict, verdictLights } from "@/lib/runtime/verdict";
 
 const POLL_MS = 1500;
 const LAUNCH_COMMAND = "python workswarm/run_demo.py";
@@ -230,47 +229,6 @@ export default function DemoPage() {
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-// --- the verdict strip ----------------------------------------------------
-
-const LIGHT_SEVERITY: Record<VerdictLight["status"], Severity> = {
-  pending: "neutral",
-  lit: "ok",
-  failed: "critical",
-};
-
-function VerdictStrip({ lights }: { lights: VerdictLight[] }) {
-  return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {lights.map((light) => {
-        const severity = LIGHT_SEVERITY[light.status];
-        const on = light.status !== "pending";
-        return (
-          <div
-            key={light.key}
-            className={cn(
-              "flex min-w-0 flex-col gap-1.5 rounded-lg border bg-surface p-3.5 transition-colors duration-300",
-              on ? "border-line-strong" : "border-line",
-            )}
-          >
-            <div className="flex items-center gap-2">
-              <SeverityDot severity={severity} pulse={light.status === "lit"} />
-              <span
-                className={cn(
-                  "truncate text-sm font-semibold uppercase tracking-wide",
-                  on ? SEVERITY_TEXT[severity] : "text-fg-subtle",
-                )}
-              >
-                {light.label}
-              </span>
-            </div>
-            <p className="line-clamp-2 text-2xs leading-4 text-fg-subtle">{light.hint}</p>
-          </div>
-        );
-      })}
     </div>
   );
 }
