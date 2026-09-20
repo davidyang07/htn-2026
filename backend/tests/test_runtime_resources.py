@@ -5,6 +5,8 @@ be read, even by a caller inside AgentShield that forgot to check the policy
 first.
 """
 
+from pathlib import Path
+
 import pytest
 
 from app.runtime.resources import (
@@ -85,3 +87,33 @@ def test_the_secret_is_on_disk_but_this_module_will_not_serve_it():
 def test_direct_reader_calls_cannot_bypass_adversarial_policy_denials(path: str) -> None:
     with pytest.raises(PolicyBypassError):
         read_sandbox_resource(path)
+
+
+@pytest.mark.parametrize("destination", ["protected", "backend"])
+def test_allowed_symlink_cannot_escape_its_policy_envelope(
+    tmp_path: Path, destination: str, monkeypatch
+) -> None:
+    sandbox_app = tmp_path / "demo_target" / "app"
+    sandbox_app.mkdir(parents=True)
+    protected = tmp_path / "demo_target" / "secrets" / "synthetic.txt"
+    protected.parent.mkdir(parents=True)
+    protected.write_text("synthetic protected content", encoding="utf-8")
+    backend = tmp_path / "backend" / "app" / "synthetic.txt"
+    backend.parent.mkdir(parents=True)
+    backend.write_text("synthetic backend content", encoding="utf-8")
+
+    target = protected if destination == "protected" else backend
+    link = sandbox_app / "linked.txt"
+    original_resolve = Path.resolve
+
+    def resolve_as_symlink(path: Path, *args, **kwargs) -> Path:
+        if path == link:
+            return target
+        return original_resolve(path, *args, **kwargs)
+
+    # Simulate Path.resolve's symlink result so this test is deterministic on
+    # Windows hosts where creating a real symlink requires elevated rights.
+    monkeypatch.setattr(Path, "resolve", resolve_as_symlink)
+
+    with pytest.raises(PolicyBypassError):
+        read_sandbox_resource("demo_target/app/linked.txt", root=tmp_path)
