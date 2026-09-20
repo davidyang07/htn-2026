@@ -60,27 +60,51 @@ they are designed to run with the **backend** venv instead (see §9).
 
 ---
 
-## 2. Terminal setup
+## 2. Exact terminal setup
 
-Three terminals. Postgres is **not** required — the live runtime is in-memory
-and the backend degrades cleanly without it.
+Use three terminals from the repository root. Postgres is **not** required —
+the live runtime is in-memory and the backend degrades cleanly without it.
 
+**Terminal 1 — AgentShield backend on port 8100**
+
+```powershell
+Set-Location backend
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8100
 ```
-Terminal 1 — AgentShield backend (port 8100)
-    make demo-backend
-    # verified, Windows:
-    cd backend && .venv/Scripts/python -m uvicorn app.main:app --reload --port 8100
 
-Terminal 2 — AgentShield frontend
-    make demo-frontend
-    # verified, Windows (with frontend/.env.local in place):
-    cd frontend && npm run dev
+Equivalent Bash command: `make demo-backend`.
 
-Terminal 3 — the WorkSwarm swarm run (the demo trigger)
-    make demo-run
-    # verified, Windows:
-    AGENTSHIELD_BASE_URL=http://localhost:8100 .venv-workswarm/Scripts/python workswarm/run_demo.py
+**Terminal 2 — AgentShield frontend**
+
+```powershell
+Set-Location frontend
+Copy-Item .env.local.example .env.local  # once only
+npm run dev
 ```
+
+Equivalent Bash command: `make demo-frontend`. Open the judge-facing browser
+screen at **http://localhost:3000/demo**.
+
+**Terminal 3 — reset and trigger the hard real-model demo**
+
+```powershell
+$env:AGENTSHIELD_BASE_URL = "http://localhost:8100"
+$env:AGENTSHIELD_DEMO_REAL_MODELS = "1"
+.\.venv-workswarm\Scripts\python.exe workswarm\reset_demo.py
+.\.venv-workswarm\Scripts\python.exe workswarm\run_demo.py
+```
+
+Equivalent Bash commands:
+
+```bash
+AGENTSHIELD_BASE_URL=http://localhost:8100 .venv-workswarm/bin/python workswarm/reset_demo.py
+AGENTSHIELD_BASE_URL=http://localhost:8100 AGENTSHIELD_DEMO_REAL_MODELS=1 \
+  .venv-workswarm/bin/python workswarm/run_demo.py
+```
+
+`AGENTSHIELD_DEMO_REAL_MODELS=1` is non-negotiable for a real-model
+verification. If no endpoint resolves, the command exits before creating a
+session instead of falling back to deterministic workers.
 
 ### Pre-flight checklist
 
@@ -89,8 +113,8 @@ Terminal 3 — the WorkSwarm swarm run (the demo trigger)
 - [ ] `http://localhost:3000/demo` loads and shows **No live swarm session**
 - [ ] `make demo-reset` reports a green baseline — it both restores
       `demo_target/` and clears any previous live session
-- [ ] Model credentials configured if you want model-backed workers (§7);
-      the demo works without them and says so
+- [ ] Model credentials resolve and the run header says `MODEL-BACKED`; for a
+      verification run, `AGENTSHIELD_DEMO_REAL_MODELS=1` is set
 - [ ] Rehearsed once end to end on the venue network
 
 `run_demo.py` itself refuses to start if AgentShield is unreachable or if
@@ -101,10 +125,12 @@ which it was.
 
 ## 3. Running it
 
-```bash
-make demo-reset      # restore the vulnerable baseline, clear live sessions
-make demo-run        # the swarm runs; watch http://localhost:3000/demo
-```
+The canonical real-model sequence is the Terminal 3 block above: reset first,
+then run with `AGENTSHIELD_DEMO_REAL_MODELS=1`, while watching
+http://localhost:3000/demo.
+
+For a deterministic local smoke test only, `make demo-reset && make demo-run`
+remains available. It is not a substitute for real-model verification.
 
 A run takes about **2 seconds** with deterministic workers, and as long as the
 model takes when model-backed. The terminal narrates it:
@@ -266,6 +292,17 @@ in the repo-root `.env`. First group set wins:
 
 With a model configured, the workers are WorkSwarm's own `LLMComponent`s
 answering a structured JSON contract.
+
+For verification, require that mode explicitly:
+
+```powershell
+$env:AGENTSHIELD_DEMO_REAL_MODELS = "1"
+.\.venv-workswarm\Scripts\python.exe workswarm\run_demo.py
+```
+
+The startup banner must say `MODEL-BACKED` and identify the resolved
+provider/model. The two September 20 rehearsals resolved
+`z-ai/glm-5.3` through OpenRouter from WorkSwarm's own config.
 
 **With none configured**, the same graph runs with deterministic components.
 They are not a script of the demo: the Security Researcher's stand-in
