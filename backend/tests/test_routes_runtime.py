@@ -6,9 +6,10 @@ FastAPI TestClient, this repo's existing convention (see tests/test_stream.py).
 import uuid
 
 import pytest
+from fastapi.testclient import TestClient
+
 from app.main import app
 from app.runtime.registry import runtime_registry
-from fastapi.testclient import TestClient
 
 OBJECTIVE = (
     "Find and fix the authentication vulnerability in this repository, "

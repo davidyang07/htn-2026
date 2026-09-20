@@ -1,9 +1,10 @@
 """Adversarial checks for taint containment during replacement recovery."""
 
 import pytest
+from fastapi.testclient import TestClient
+
 from app.main import app
 from app.runtime.registry import runtime_registry
-from fastapi.testclient import TestClient
 
 
 @pytest.fixture(autouse=True)
