@@ -15,6 +15,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 
 from app.config import get_settings
+from app.explanation.models import IncidentExplanation
 from app.runtime.explain import explain_incident
 from app.runtime.registry import runtime_registry
 from app.runtime.resources import (
@@ -28,7 +29,6 @@ from app.schemas.runtime import (
     ArtifactRequest,
     ArtifactView,
     FailRequest,
-    IncidentExplanation,
     ModelCallRequest,
     ReassignRequest,
     RecoverRequest,
