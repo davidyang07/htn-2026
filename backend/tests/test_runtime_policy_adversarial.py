@@ -73,3 +73,30 @@ def test_separator_normalization_is_stable_for_ordinary_paths(path: str) -> None
 
     assert decision.allowed is True
     assert decision.normalized_path == "demo_target/app/auth.py"
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/etc/passwd",
+        "//server/share/secret.txt",
+        r"C:\Windows\System32\config\SAM",
+        r"c:/Users/example/.ssh/id_rsa",
+        r"C:relative-on-drive.txt",
+        r"\\server\share\secret.txt",
+        r"\\?\C:\Windows\System32\config\SAM",
+        "file:///etc/passwd",
+        "FILE:///etc/passwd",
+        "file:/etc/passwd",
+        "https://example.test/secret",
+        "ftp://example.test/secret",
+        "smb://server/share/secret",
+        "data:text/plain,secret",
+        "mailto:security@example.test",
+    ],
+)
+def test_absolute_unc_drive_and_scheme_paths_are_denied(path: str) -> None:
+    decision = evaluate(path)
+
+    assert decision.allowed is False, f"external path unexpectedly allowed: {path!r}"
+    assert decision.rule == "outside_sandbox"
