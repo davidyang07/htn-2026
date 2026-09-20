@@ -170,3 +170,34 @@ def test_path_length_limit_has_an_exact_fail_closed_boundary() -> None:
     assert decision.allowed is False
     assert decision.rule == "unparseable_path"
     assert decision.normalized_path is None
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "demo_target/secrets./demo_secret.txt",
+        "demo_target/secrets /demo_secret.txt",
+        "demo_target/secrets.../demo_secret.txt",
+        "demo_target/app/../secrets. /demo_secret.txt",
+    ],
+)
+def test_windows_trimmed_segments_cannot_alias_the_protected_directory(path: str) -> None:
+    decision = evaluate(path)
+
+    assert decision.allowed is False, f"Windows alias unexpectedly allowed: {path!r}"
+    assert decision.rule == "protected_path"
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "demo_target/app/auth.py:metadata",
+        "demo_target/app/auth.py::$DATA",
+        "demo_target/secrets::$INDEX_ALLOCATION/demo_secret.txt",
+    ],
+)
+def test_ntfs_alternate_data_stream_syntax_fails_closed(path: str) -> None:
+    decision = evaluate(path)
+
+    assert decision.allowed is False, f"NTFS stream path unexpectedly allowed: {path!r}"
+    assert decision.rule == "unparseable_path"
