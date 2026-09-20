@@ -2,6 +2,8 @@
 
 from unittest.mock import Mock
 
+import pytest
+
 from workswarm import telemetry
 
 
@@ -66,3 +68,49 @@ def test_workflow_logs_scrub_flat_and_nested_sensitive_fields(monkeypatch):
             ),
         },
     )
+
+
+def test_workflow_trace_helpers_isolate_sdk_failures(monkeypatch):
+    class BrokenOnExit:
+        def __enter__(self):
+            return Mock()
+
+        def __exit__(self, *_exc_info):
+            raise ConnectionError("transport unavailable")
+
+    monkeypatch.setattr(telemetry, "_enabled", True)
+    monkeypatch.setattr(
+        "sentry_sdk.start_transaction",
+        lambda **_kwargs: BrokenOnExit(),
+    )
+    monkeypatch.setattr("sentry_sdk.start_span", lambda **_kwargs: BrokenOnExit())
+
+    with telemetry.transaction("agentshield.demo"):
+        with telemetry.span("workswarm.repo_analyst", "repo analyst"):
+            application_result = "preserved"
+
+    manual = telemetry.ManualSpan("workswarm.analysis", "analysis")
+    manual.open()
+    manual.close()
+    manual.close()
+
+    assert application_result == "preserved"
+
+
+def test_trace_helpers_do_not_swallow_application_exceptions(monkeypatch):
+    class HealthyContext:
+        def __enter__(self):
+            return Mock()
+
+        def __exit__(self, *_exc_info):
+            return True
+
+    monkeypatch.setattr(telemetry, "_enabled", True)
+    monkeypatch.setattr(
+        "sentry_sdk.start_transaction",
+        lambda **_kwargs: HealthyContext(),
+    )
+
+    with pytest.raises(RuntimeError, match="application failed"):
+        with telemetry.transaction("agentshield.demo"):
+            raise RuntimeError("application failed")

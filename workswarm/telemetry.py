@@ -104,10 +104,24 @@ def transaction(name: str, op: str = "swarm.run") -> Iterator[None]:
     if not _enabled:
         yield
         return
-    import sentry_sdk
 
-    with sentry_sdk.start_transaction(op=op, name=name):
+    try:
+        import sentry_sdk
+
+        transaction_context = sentry_sdk.start_transaction(op=op, name=name)
+        transaction_context.__enter__()
+    except Exception:
+        logger.debug("Sentry transaction startup failed for %s", name, exc_info=True)
         yield
+        return
+
+    try:
+        yield
+    except BaseException as error:
+        _close_context(transaction_context, name, error)
+        raise
+    else:
+        _close_context(transaction_context, name)
 
 
 @contextmanager
@@ -115,12 +129,39 @@ def span(op: str, name: str, **data: Any) -> Iterator[None]:
     if not _enabled:
         yield
         return
-    import sentry_sdk
 
-    with sentry_sdk.start_span(op=op, name=name) as current:
-        for key, value in _safe_fields(data).items():
-            current.set_data(key, value)
+    try:
+        import sentry_sdk
+
+        span_context = sentry_sdk.start_span(op=op, name=name)
+        current = span_context.__enter__()
+    except Exception:
+        logger.debug("Sentry span startup failed for %s", name, exc_info=True)
         yield
+        return
+
+    try:
+        for key, value in _safe_fields(data).items():
+            try:
+                current.set_data(key, value)
+            except Exception:
+                logger.debug("Sentry span metadata failed for %s", name, exc_info=True)
+        yield
+    except BaseException as error:
+        _close_context(span_context, name, error)
+        raise
+    else:
+        _close_context(span_context, name)
+
+
+def _close_context(context: Any, name: str, error: BaseException | None = None) -> None:
+    try:
+        if error is None:
+            context.__exit__(None, None, None)
+        else:
+            context.__exit__(type(error), error, error.__traceback__)
+    except Exception:
+        logger.debug("Sentry context shutdown failed for %s", name, exc_info=True)
 
 
 class ManualSpan:
@@ -140,12 +181,13 @@ class ManualSpan:
     def open(self) -> None:
         if not _enabled or self._cm is not None:
             return
-        import sentry_sdk
-
-        self._cm = sentry_sdk.start_span(op=self._op, name=self._name)
         try:
+            import sentry_sdk
+
+            self._cm = sentry_sdk.start_span(op=self._op, name=self._name)
             self._cm.__enter__()
         except Exception:  # pragma: no cover - telemetry must never break a run
+            logger.debug("Sentry manual span startup failed for %s", self._name, exc_info=True)
             self._cm = None
 
     def close(self) -> None:
@@ -154,7 +196,7 @@ class ManualSpan:
         try:
             self._cm.__exit__(None, None, None)
         except Exception:  # pragma: no cover
-            pass
+            logger.debug("Sentry manual span shutdown failed for %s", self._name, exc_info=True)
         finally:
             self._cm = None
 
