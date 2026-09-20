@@ -511,6 +511,17 @@ async def record_test_run(session_id: UUID, body: TestRunRequest) -> RuntimeSess
             exit_code=body.exit_code,
             summary=body.summary,
         )
+    else:
+        sentry.log_event(
+            "developer.regression_failed",
+            "Regression suite failed",
+            session_id=str(session.session_id),
+            run_id=str(session.session_id),
+            worker_id=body.worker_id,
+            exit_code=body.exit_code,
+            pytest_exit_code=body.exit_code,
+            phase="test_run",
+        )
     return _summary(session)
 
 

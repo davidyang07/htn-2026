@@ -605,17 +605,18 @@ class ProveVulnerabilityStep(ContextComponent):
                 )
             ),
         )
-        log_event(
-            "developer.patch_applied",
-            (
-                f"Regression test fails against the vulnerable module: {result.summary}"
-                if proven
-                else "Regression test did not fail against the vulnerable module"
-            ),
-            worker_id=DEVELOPER,
-            phase="before_fix",
-            vulnerability_proven=proven,
-        )
+        if proven:
+            log_event(
+                "developer.regression_failed",
+                "Regression test failed against the vulnerable module",
+                **self.ctx.trace_fields(
+                    DEVELOPER,
+                    exit_code=result.exit_code,
+                    pytest_exit_code=result.exit_code,
+                    phase="before_fix",
+                    vulnerability_proven=True,
+                ),
+            )
 
         return {
             "vulnerability_proven": proven,
@@ -640,16 +641,22 @@ class ApplyPatchStep(ContextComponent):
                 "against the unpatched module, so there is nothing proven to fix"
             )
 
-        with span("developer.patch", "developer.apply_patch", worker_id=DEVELOPER):
+        with span(
+            "developer.patch",
+            "developer.patch",
+            **self.ctx.trace_fields(DEVELOPER, phase="fix"),
+        ):
             written = write_in_sandbox(AUTH_MODULE_PATH, patched_source)
 
         self.ctx.client.complete_task(DEVELOPER, "patch", explanation)
         log_event(
             "developer.patch_applied",
-            explanation,
-            worker_id=DEVELOPER,
-            phase="fix",
-            files_written=[written],
+            "Developer patch applied",
+            **self.ctx.trace_fields(
+                DEVELOPER,
+                phase="fix",
+                files_written=[written],
+            ),
         )
         return {
             "patched_source": patched_source,

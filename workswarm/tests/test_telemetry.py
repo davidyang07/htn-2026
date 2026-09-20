@@ -70,6 +70,20 @@ def test_workflow_logs_scrub_flat_and_nested_sensitive_fields(monkeypatch):
     )
 
 
+def test_workflow_structured_log_names_cover_the_demo_story():
+    assert telemetry.STRUCTURED_LOG_NAMES == {
+        "security.policy_violation",
+        "security.tool_denied",
+        "security.agent_quarantined",
+        "swarm.task_reassigned",
+        "swarm.replacement_started",
+        "developer.regression_failed",
+        "developer.patch_applied",
+        "swarm.tests_passed",
+        "swarm.recovery_complete",
+    }
+
+
 def test_workflow_trace_helpers_isolate_sdk_failures(monkeypatch):
     class BrokenOnExit:
         def __enter__(self):

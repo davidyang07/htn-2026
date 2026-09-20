@@ -83,6 +83,7 @@ def test_the_structured_log_names_are_the_ones_the_docs_promise():
         "security.agent_quarantined",
         "swarm.task_reassigned",
         "swarm.replacement_started",
+        "developer.regression_failed",
         "developer.patch_applied",
         "swarm.tests_passed",
         "swarm.recovery_complete",
@@ -231,6 +232,50 @@ def test_runtime_security_logs_carry_safe_run_correlation(monkeypatch):
     assert by_name["security.agent_quarantined"]["run_id"] == run_id
     assert by_name["security.agent_quarantined"]["role"] == "Security Researcher"
     assert by_name["security.agent_quarantined"]["security_state"] == "quarantined"
+
+
+def test_failed_test_run_emits_the_regression_red_log(monkeypatch):
+    emitted = []
+    monkeypatch.setattr(
+        sentry,
+        "log_event",
+        lambda name, message, **fields: emitted.append((name, fields)),
+    )
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/runtime/sessions",
+            json={
+                "objective": "Fix the auth bug.",
+                "workers": [{"id": "developer", "role": "Developer"}],
+            },
+        )
+        run_id = created.json()["session_id"]
+        response = client.post(
+            f"/api/runtime/sessions/{run_id}/test-run",
+            json={
+                "worker_id": "developer",
+                "command": "pytest demo_target  (before the fix)",
+                "exit_code": 1,
+                "passed": False,
+                "summary": "1 failed, 7 passed",
+            },
+        )
+
+    assert response.status_code == 202
+    assert emitted == [
+        (
+            "developer.regression_failed",
+            {
+                "session_id": run_id,
+                "run_id": run_id,
+                "worker_id": "developer",
+                "exit_code": 1,
+                "pytest_exit_code": 1,
+                "phase": "test_run",
+            },
+        )
+    ]
 
 
 def test_the_whole_demo_path_works_with_nothing_configured():

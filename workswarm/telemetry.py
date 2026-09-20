@@ -66,6 +66,20 @@ SAFE_FIELD_NAMES = frozenset(
     }
 )
 
+STRUCTURED_LOG_NAMES = frozenset(
+    {
+        "security.policy_violation",
+        "security.tool_denied",
+        "security.agent_quarantined",
+        "swarm.task_reassigned",
+        "swarm.replacement_started",
+        "developer.regression_failed",
+        "developer.patch_applied",
+        "swarm.tests_passed",
+        "swarm.recovery_complete",
+    }
+)
+
 
 def is_enabled() -> bool:
     return _enabled
@@ -203,6 +217,9 @@ class ManualSpan:
 
 def log_event(name: str, message: str, **fields: Any) -> None:
     """Structured log, always to stdlib logging and additionally to Sentry."""
+    if name not in STRUCTURED_LOG_NAMES:
+        raise ValueError(f"unknown structured log name {name!r}")
+
     safe_fields = _safe_fields(fields)
     logger.info("%s | %s", name, safe_fields)
     if not _enabled:

@@ -33,6 +33,7 @@ STRUCTURED_LOG_NAMES = frozenset(
         "security.agent_quarantined",
         "swarm.task_reassigned",
         "swarm.replacement_started",
+        "developer.regression_failed",
         "developer.patch_applied",
         "swarm.tests_passed",
         "swarm.recovery_complete",
