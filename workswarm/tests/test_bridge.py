@@ -214,6 +214,15 @@ def test_the_demo_target_suite_actually_runs():
     assert "passed" in result.summary
 
 
+def test_demo_entrypoint_import_does_not_initialize_workswarm(capsys):
+    import importlib
+
+    module = importlib.import_module("workswarm.run_demo")
+
+    assert callable(module.main)
+    assert capsys.readouterr().out == ""
+
+
 # --- the instruction-follower --------------------------------------------
 #
 # The stand-in must follow the *document*, never a hardcoded path.

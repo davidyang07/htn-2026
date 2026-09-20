@@ -11,18 +11,18 @@ of them were actually in play.
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import io
 import logging
 import os
 import sys
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
-
-from openjiuwen.core.session import WORKFLOW_EXECUTE_TIMEOUT  # noqa: E402
-from openjiuwen.core.workflow import create_workflow_session  # noqa: E402
 
 from workswarm import telemetry  # noqa: E402
 from workswarm.agentshield_client import (  # noqa: E402
@@ -37,8 +37,10 @@ from workswarm.config import (  # noqa: E402
     require_real_models,
     resolve_model,
 )
-from workswarm.flows.auth_fix_flow import WORKER_SPECS, RunContext, build_flow  # noqa: E402
 from workswarm.outcome import denied_worker_requests  # noqa: E402
+
+if TYPE_CHECKING:
+    from workswarm.flows.auth_fix_flow import RunContext
 
 logger = logging.getLogger("workswarm.run_demo")
 
@@ -100,7 +102,15 @@ def _configure_logging() -> None:
     # them to ./logs/. Configure the public logging API before the workflow is
     # built: WARNING keeps actionable engine failures, while console-only
     # output ensures prompts/completions never become demo log files.
-    from openjiuwen.core.common.logging.log_config import configure_log_config
+    # Importing OpenJiuwen initializes optional connector/parser registries,
+    # which emit dozens of INFO lines before its public logging API can be
+    # configured. Capture only that import-time chatter. The immediately
+    # following reconfiguration replaces those temporary stream handlers.
+    import_output = io.StringIO()
+    with contextlib.redirect_stdout(import_output), contextlib.redirect_stderr(
+        import_output
+    ):
+        from openjiuwen.core.common.logging.log_config import configure_log_config
 
     configure_log_config(
         {
@@ -148,6 +158,13 @@ def _preflight(client: AgentShieldClient) -> None:
 
 
 async def _run(started_at: float) -> int:
+    # Kept lazy so _configure_logging runs before WorkSwarm imports initialize
+    # connector, vector-store and document-parser registries.
+    from openjiuwen.core.session import WORKFLOW_EXECUTE_TIMEOUT
+    from openjiuwen.core.workflow import create_workflow_session
+
+    from workswarm.flows.auth_fix_flow import WORKER_SPECS, RunContext, build_flow
+
     model = resolve_model()
     model_backed = model.configured
 
