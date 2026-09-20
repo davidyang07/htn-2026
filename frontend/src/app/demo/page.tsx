@@ -7,6 +7,7 @@ import { ContainmentPanel } from "@/components/demo/ContainmentPanel";
 import { ExplanationPanel } from "@/components/demo/ExplanationPanel";
 import { IncidentStage } from "@/components/demo/IncidentStage";
 import { NarrativeTimeline } from "@/components/demo/NarrativeTimeline";
+import { ProvenanceBar } from "@/components/demo/ProvenanceBar";
 import { RunHeader } from "@/components/demo/RunHeader";
 import { Section } from "@/components/demo/Section";
 import { TestEvidencePanel } from "@/components/demo/TestEvidencePanel";
@@ -171,6 +172,7 @@ export default function DemoPage() {
                 description="Who handed work to whom, and where the chain broke."
               >
                 <IncidentStage stage={stage} provenance={provenance} />
+                <ProvenanceBar provenance={provenance} />
               </Section>
 
               <Section

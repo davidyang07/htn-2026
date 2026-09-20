@@ -8,7 +8,7 @@ import { BrandMark } from "@/components/ui/icons";
 import { cn } from "@/lib/cn";
 import type { RuntimeSessionSummary, WorkflowState } from "@/lib/runtime/client";
 import { elapsedMs, formatDuration, type RunWindow } from "@/lib/runtime/clock";
-import { routeLabel, type ProvenanceIndex } from "@/lib/runtime/provenance";
+import type { ProvenanceIndex } from "@/lib/runtime/provenance";
 import { SEVERITY_TEXT, type Severity } from "@/lib/severity";
 
 /**
@@ -129,18 +129,6 @@ export function RunHeader({
         </Button>
       </div>
 
-      {provenance.fallbacks.length > 0 && (
-        <p className="mx-auto w-full max-w-[1500px] px-6 pb-2.5 text-2xs text-fg-subtle">
-          {provenance.fallbacks.map((fallback, i) => (
-            <span key={fallback.workerId}>
-              {i > 0 && "; "}
-              <span className="font-mono text-fg-muted">{fallback.workerId}</span> took the{" "}
-              <span className="font-mono text-fg-muted">{routeLabel(fallback.route)}</span> route
-            </span>
-          ))}
-          {" — reported as it happened, never as the route that was planned."}
-        </p>
-      )}
     </header>
   );
 }
