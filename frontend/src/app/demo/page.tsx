@@ -1,15 +1,15 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { EventFeed } from "@/components/activity/EventFeed";
+import { IncidentStage } from "@/components/demo/IncidentStage";
 import { RunHeader } from "@/components/demo/RunHeader";
 import { Section } from "@/components/demo/Section";
 import { Badge, SecurityStateBadge, SeverityDot } from "@/components/ui/Badge";
 import { IconAlert, IconShieldCheck, IconSpark } from "@/components/ui/icons";
 import { Panel, PanelHeader } from "@/components/ui/Panel";
-import { EmptyState, ErrorState, Spinner } from "@/components/ui/States";
+import { EmptyState, ErrorState } from "@/components/ui/States";
 import { cn } from "@/lib/cn";
 import {
   NoLiveSessionError,
@@ -21,24 +21,10 @@ import {
 } from "@/lib/runtime/client";
 import { runWindow } from "@/lib/runtime/clock";
 import { deriveProvenance } from "@/lib/runtime/provenance";
-import { buildSwarmModel } from "@/lib/runtime/swarmModel";
+import { buildStage } from "@/lib/runtime/stage";
 import { useRuntimeStream } from "@/lib/runtime/useRuntimeStream";
 import { deriveVerdict, verdictLights, type VerdictLight } from "@/lib/runtime/verdict";
 import { SEVERITY_TEXT, type Severity } from "@/lib/severity";
-
-// Sigma touches WebGL2RenderingContext at module load, so it can never run on
-// the server. Same treatment as the simulator's topology workspace.
-const TopologyGraph = dynamic(
-  () => import("@/components/graph/TopologyGraph").then((mod) => mod.TopologyGraph),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex size-full items-center justify-center gap-2 text-xs text-fg-muted">
-        <Spinner /> Loading renderer…
-      </div>
-    ),
-  },
-);
 
 const POLL_MS = 1500;
 const LAUNCH_COMMAND = "python workswarm/run_demo.py";
@@ -128,7 +114,7 @@ export default function DemoPage() {
     }
   }, []);
 
-  const model = useMemo(() => buildSwarmModel(summary, state), [summary, state]);
+  const stage = useMemo(() => buildStage(summary, state), [summary, state]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -166,30 +152,10 @@ export default function DemoPage() {
               <Section
                 step="02"
                 title="The swarm"
-                description="Named WorkSwarm workers. Colour is security state and nothing else."
+                description="Who handed work to whom, and where the chain broke."
               >
-                <div className="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
-                  <Panel flush className="min-h-0">
-                    <div className="h-[300px] min-h-0 w-full">
-                      {model.nodes.length === 0 ? (
-                        <EmptyState
-                          className="h-full"
-                          title="No workers registered yet"
-                          description="The graph draws as soon as the swarm registers its team."
-                        />
-                      ) : (
-                        <TopologyGraph
-                          model={model}
-                          layers={new Set(["mesh"] as const)}
-                          selectedId={null}
-                          onSelect={() => {}}
-                        />
-                      )}
-                    </div>
-                  </Panel>
-
-                  <WorkerTable summary={summary} />
-                </div>
+                <IncidentStage stage={stage} provenance={provenance} />
+                <WorkerTable summary={summary} />
               </Section>
 
               <Section
