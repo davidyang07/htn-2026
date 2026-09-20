@@ -109,6 +109,12 @@ class ModelCallRequest(BaseModel):
     model: str = Field(..., max_length=128)
     #: Host only, never the full URL with any query or credential.
     endpoint_host: str = Field("", max_length=128)
+    #: Truthful execution route. In particular, ``sponsor_fallback`` means a
+    #: configured/verified RunPod route did not answer this invocation.
+    provider_route: Literal["runpod", "sponsor", "sponsor_fallback"] = "sponsor"
+    fallback_used: bool = False
+    #: Sanitized cause only; never an exception message, URL, or credential.
+    fallback_reason: str = Field("", max_length=200)
     latency_ms: int = Field(..., ge=0)
     #: Sizes, not contents.
     prompt_chars: int = Field(0, ge=0)

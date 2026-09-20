@@ -1244,6 +1244,22 @@ export interface components {
              * @default
              */
             endpoint_host: string;
+            /**
+             * Provider Route
+             * @default sponsor
+             * @enum {string}
+             */
+            provider_route: "runpod" | "sponsor" | "sponsor_fallback";
+            /**
+             * Fallback Used
+             * @default false
+             */
+            fallback_used: boolean;
+            /**
+             * Fallback Reason
+             * @default
+             */
+            fallback_reason: string;
             /** Latency Ms */
             latency_ms: number;
             /**

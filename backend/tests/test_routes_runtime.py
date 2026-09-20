@@ -6,10 +6,9 @@ FastAPI TestClient, this repo's existing convention (see tests/test_stream.py).
 import uuid
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app.main import app
 from app.runtime.registry import runtime_registry
+from fastapi.testclient import TestClient
 
 OBJECTIVE = (
     "Find and fix the authentication vulnerability in this repository, "
@@ -314,6 +313,37 @@ def test_reassignment_with_trusted_context_creates_a_healthy_replacement():
 
         types = [e["event_type"] for e in _events(client, session_id)]
         assert types[-3:] == ["TASK_REASSIGNED", "AGENT_CREATED", "AGENT_STARTED"]
+
+
+def test_model_call_events_report_the_provider_route_truthfully():
+    with TestClient(app) as client:
+        session_id = _create(client)
+        resp = client.post(
+            f"/api/runtime/sessions/{session_id}/model-call",
+            json={
+                "worker_id": "repo-analyst",
+                "provider": "OpenAI",
+                "model": "sponsor-model",
+                "endpoint_host": "sponsor.invalid",
+                "provider_route": "sponsor_fallback",
+                "fallback_used": True,
+                "fallback_reason": "RunPod invocation failed (ReadTimeout)",
+                "latency_ms": 42,
+                "prompt_chars": 100,
+                "response_chars": 50,
+            },
+        )
+
+        assert resp.status_code == 202
+        events = _events(client, session_id)
+        for event in events[-2:]:
+            assert event["event_type"] in {"MODEL_REQUESTED", "MODEL_RESPONDED"}
+            assert event["metadata"]["provider"] == "OpenAI"
+            assert event["metadata"]["provider_route"] == "sponsor_fallback"
+            assert event["metadata"]["fallback_used"] is True
+            assert event["metadata"]["fallback_reason"] == (
+                "RunPod invocation failed (ReadTimeout)"
+            )
 
 
 def test_a_full_recovery_reports_the_real_test_result():

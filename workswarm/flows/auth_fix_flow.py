@@ -154,11 +154,17 @@ class RunContext:
             if provider_use and provider_use.route == "runpod"
             else actual_model.provider
         )
+        route = provider_use.route if provider_use is not None else "sponsor"
+        fallback_used = provider_use.fallback_used if provider_use is not None else False
+        fallback_reason = provider_use.reason if provider_use and provider_use.fallback_used else ""
         self.client.record_model_call(
             worker_id,
             provider=provider,
             model=actual_model.model_name,
             endpoint_host=_endpoint_host(actual_model.api_base),
+            provider_route=route,
+            fallback_used=fallback_used,
+            fallback_reason=fallback_reason,
             latency_ms=latency_ms,
             prompt_chars=prompt_chars,
             response_chars=response_chars,
