@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { EventFeed } from "@/components/activity/EventFeed";
 import { AttackBanner } from "@/components/demo/AttackBanner";
 import { ContainmentPanel } from "@/components/demo/ContainmentPanel";
+import { NarrativeTimeline } from "@/components/demo/NarrativeTimeline";
 import { IncidentStage } from "@/components/demo/IncidentStage";
 import { RunHeader } from "@/components/demo/RunHeader";
 import { Section } from "@/components/demo/Section";
@@ -170,19 +170,9 @@ export default function DemoPage() {
 
                 <div className="grid min-h-0 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                   <ContainmentPanel incident={incident} artifacts={summary.artifacts} />
-                  <Panel flush className="min-h-0 max-h-[32rem]">
-                    <PanelHeader
-                      bordered
-                      title="Incident timeline"
-                      description="Every line is a real event on the live stream."
-                    />
-                    <EventFeed
-                      className="min-h-0 flex-1"
-                      events={liveEvents}
-                      emptyTitle="No events yet"
-                      emptyHint="The timeline fills as the WorkSwarm workflow runs."
-                    />
-                  </Panel>
+                  <div className="flex min-h-0 max-h-[34rem] flex-col">
+                    <NarrativeTimeline events={liveEvents} />
+                  </div>
                 </div>
               </Section>
 
