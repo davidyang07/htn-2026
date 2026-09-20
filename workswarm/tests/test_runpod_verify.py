@@ -1,6 +1,18 @@
+import httpx
 import pytest
 
-from workswarm.runpod_verify import endpoint_urls
+from workswarm.config import ModelConfig
+from workswarm.runpod_verify import RunPodVerifier, endpoint_urls
+
+
+def _model() -> ModelConfig:
+    return ModelConfig(
+        provider="OpenAI",
+        model_name="Qwen/Qwen2.5-Coder-7B-Instruct",
+        api_key="test-token",
+        api_base="https://pod.invalid/v1",
+        source="RUNPOD_MODEL_*",
+    )
 
 
 @pytest.mark.parametrize(
@@ -35,3 +47,30 @@ def test_endpoint_urls_accept_service_root_or_openai_base(configured, root):
 def test_endpoint_urls_refuse_ambiguous_or_credential_bearing_urls(unsafe):
     with pytest.raises(ValueError):
         endpoint_urls(unsafe)
+
+
+@pytest.mark.parametrize(("status", "ok"), [(200, True), (401, False), (503, False)])
+def test_health_probe_requires_http_200(status, ok):
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/health"
+        return httpx.Response(status)
+
+    verifier = RunPodVerifier(_model(), client=httpx.Client(transport=httpx.MockTransport(handler)))
+    result = verifier.probe_health()
+
+    assert result.ok is ok
+    assert result.status_code == status
+    assert result.latency_ms >= 0
+
+
+def test_health_probe_reports_connection_failure_without_credentials():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("test-token must never escape", request=request)
+
+    verifier = RunPodVerifier(_model(), client=httpx.Client(transport=httpx.MockTransport(handler)))
+    result = verifier.probe_health()
+
+    assert result.ok is False
+    assert result.status_code is None
+    assert result.detail == "request failed (ConnectError)"
+    assert "test-token" not in repr(result)
