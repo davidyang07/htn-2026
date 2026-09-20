@@ -15,8 +15,8 @@ from app.explanation.models import (
     QuarantineEvidence,
     ReplacementEvidence,
     ReviewerEvidence,
-    TestEvidence as IncidentTestEvidence,
 )
+from app.explanation.models import TestEvidence as IncidentTestEvidence
 from app.explanation.provider import ExplanationProvider
 from app.explanation.service import explain_incident
 
