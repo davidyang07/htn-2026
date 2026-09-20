@@ -66,14 +66,16 @@ export function RunHeader({
 
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-canvas/90 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-[1500px] flex-wrap items-center gap-x-6 gap-y-3 px-6 py-3.5">
+      <div className="mx-auto flex w-full max-w-[1500px] flex-wrap items-center gap-x-5 gap-y-3 px-6 py-3.5">
         <div className="flex min-w-0 items-center gap-3">
           <BrandMark className="shrink-0 text-accent" />
           <div className="min-w-0">
             <h1 className="truncate text-base font-semibold tracking-tight text-fg">
               Live Swarm Defense
             </h1>
-            <p className="truncate text-2xs text-fg-subtle">
+            {/* The strapline is the first thing to go when the header is
+                tight: the state word and the metadata both outrank it. */}
+            <p className="hidden truncate text-2xs text-fg-subtle 2xl:block">
               A real WorkSwarm team under a deterministic control plane
             </p>
           </div>
@@ -91,7 +93,7 @@ export function RunHeader({
           </span>
         </div>
 
-        <dl className="ml-auto flex min-w-0 flex-wrap items-center gap-x-5 gap-y-1.5">
+        <dl className="ml-auto flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1.5 2xl:gap-x-5">
           <Meta label="Swarm">WorkSwarm</Meta>
           <Meta label="Model">
             {provenance.primary ? (

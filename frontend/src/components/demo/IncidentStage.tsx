@@ -33,7 +33,7 @@ export function IncidentStage({
 
   return (
     <div className="overflow-x-auto rounded-lg border border-line bg-surface">
-      <div className="flex min-w-max items-stretch gap-0 p-5">
+      <div className="flex min-w-max items-stretch gap-0 p-4 2xl:p-5">
         {stage.columns.map((column, index) => (
           <Fragment key={column.column}>
             {index > 0 && <HandoffArrow broken={brokenBefore(stage, column)} />}
@@ -68,7 +68,9 @@ function Column({
   provenance: ProvenanceIndex;
 }) {
   return (
-    <div className="flex w-[15rem] shrink-0 flex-col gap-0">
+    // Sized so the whole chain fits a 1280px judging laptop without
+    // scrolling, and gets a little more room on a wider screen.
+    <div className="flex w-[13.25rem] shrink-0 flex-col gap-0 2xl:w-[15rem]">
       {column.nodes.map((node, index) => (
         <Fragment key={node.id}>
           {index > 0 && (
@@ -88,9 +90,11 @@ function HandoffArrow({ broken }: { broken: boolean }) {
   return (
     <div
       aria-hidden
-      className="flex w-10 shrink-0 items-center justify-center self-start pt-9"
+      className="flex w-8 shrink-0 items-center justify-center self-start pt-9 2xl:w-10"
     >
-      <svg width="40" height="12" viewBox="0 0 40 12" fill="none" className="overflow-visible">
+      {/* Scales into whatever width the breakpoint gives the column gap,
+          so the arrow never overlaps the cards it joins. */}
+      <svg height="12" viewBox="0 0 40 12" fill="none" className="w-full">
         <path
           d={broken ? "M2 6h11M27 6h9" : "M2 6h32"}
           stroke="currentColor"

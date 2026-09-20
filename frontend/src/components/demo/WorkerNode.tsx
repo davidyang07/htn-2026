@@ -65,16 +65,19 @@ export function WorkerNode({
     >
       <header className="flex min-w-0 items-start gap-2">
         <div className="min-w-0 flex-1">
+          {/* Wraps rather than truncates: the role is the worker's name, and a
+              judge reading "Replacement Resear…" has lost the whole point of
+              the card. The id below it may abbreviate — it is an identifier,
+              and it appears in full in the containment chain. */}
           <h3
             className={cn(
-              "truncate text-sm font-semibold tracking-tight",
+              "text-sm font-semibold leading-tight tracking-tight",
               quarantined ? "text-critical" : "text-fg",
             )}
-            title={node.role}
           >
             {node.role}
           </h3>
-          <p className="truncate font-mono text-2xs text-fg-subtle" title={node.id}>
+          <p className="mt-0.5 truncate font-mono text-2xs text-fg-subtle" title={node.id}>
             {node.id}
           </p>
         </div>
