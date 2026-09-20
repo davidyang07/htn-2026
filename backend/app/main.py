@@ -9,6 +9,7 @@ from app.api import (
     routes_experiments,
     routes_graph,
     routes_history,
+    routes_runtime,
     routes_schema,
     routes_telemetry,
     ws,
@@ -18,8 +19,15 @@ from app.db import check_postgres_reachable, create_pool
 from app.gateway.factory import build_http_client
 from app.persistence.migrate import run_migrations
 from app.persistence.registry import writer_registry
+from app.telemetry.sentry import init_sentry
 
 logger = logging.getLogger(__name__)
+
+# Before the app object exists, so the SDK's integrations wrap FastAPI/ASGI
+# and the HTTP client from the first request onward. A no-op when SENTRY_DSN
+# is unset, which is the configuration the demo must work in
+# (docs/PROJECT.md §9).
+init_sentry(get_settings())
 
 
 @asynccontextmanager
@@ -70,6 +78,7 @@ app.add_middleware(
 app.include_router(routes_experiments.router)
 app.include_router(routes_graph.router)
 app.include_router(routes_history.router)
+app.include_router(routes_runtime.router)
 app.include_router(routes_schema.router)
 app.include_router(routes_telemetry.router)
 app.include_router(ws.router)

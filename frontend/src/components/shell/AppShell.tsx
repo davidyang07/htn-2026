@@ -92,10 +92,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       </nav>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Archive screens are about a *persisted* run; showing the live run's
-            status and transport beside a replay of a different run is the kind
-            of ambiguity that makes an operator distrust the whole screen. */}
-        {!pathname.startsWith("/history") && <RunContextBar />}
+        {/* Archive screens are about a *persisted* run, and /demo is about a
+            *live WorkSwarm session*; showing the simulator run's status and
+            transport beside either is the kind of ambiguity that makes an
+            operator distrust the whole screen. */}
+        {!pathname.startsWith("/history") && !pathname.startsWith("/demo") && <RunContextBar />}
 
         {/* Below `lg` the rail is replaced by a horizontal strip, so the nav
             never eats a third of a narrow viewport. */}

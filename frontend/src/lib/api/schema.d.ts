@@ -420,6 +420,323 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runtime/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Session */
+        post: operations["create_session_api_runtime_sessions_post"];
+        /**
+         * Reset Sessions
+         * @description Reset Demo. Drops every live session; the simulator is untouched.
+         */
+        delete: operations["reset_sessions_api_runtime_sessions_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runtime/sessions/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Current Session
+         * @description The session the /demo screen attaches to when it holds no id.
+         */
+        get: operations["get_current_session_api_runtime_sessions_current_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runtime/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Session */
+        get: operations["get_session_api_runtime_sessions__session_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runtime/sessions/{session_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Session Events */
+        get: operations["get_session_events_api_runtime_sessions__session_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runtime/sessions/{session_id}/snapshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Session Snapshot
+         * @description The same SnapshotFrame the WebSocket sends on connect.
+         *
+         *     Exists so a client attaching to a run already in progress -- or opening
+         *     /demo after it finished -- can rebuild the whole picture: this snapshot
+         *     for the graph, then GET /events for the timeline, then the socket from
+         *     `snapshot.last_seq` onward with no gap.
+         */
+        get: operations["get_session_snapshot_api_runtime_sessions__session_id__snapshot_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runtime/sessions/{session_id}/workers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Register Worker */
+        post: operations["register_worker_api_runtime_sessions__session_id__workers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runtime/sessions/{session_id}/resource-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Resource
+         * @description Evaluate one resource request. Synchronous; the flow obeys the answer.
+         *
+         *     Ordering that is load-bearing and easy to break by rearranging: the policy
+         *     is evaluated and the full deny cascade is emitted *before* anything is
+         *     read, and the read happens only on the allow branch.
+         */
+        post: operations["request_resource_api_runtime_sessions__session_id__resource_request_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runtime/sessions/{session_id}/model-call": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Model Call
+         * @description Record that a worker's reasoning came from a real model call.
+         *
+         *     Identity and timing only -- no prompt, no completion, no credential. The
+         *     presence of these events is what distinguishes a model-backed run from one
+         *     using deterministic stand-ins, so it must be recorded by the side that
+         *     actually made the call rather than asserted anywhere else.
+         */
+        post: operations["record_model_call_api_runtime_sessions__session_id__model_call_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runtime/sessions/{session_id}/tasks/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start Task */
+        post: operations["start_task_api_runtime_sessions__session_id__tasks_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runtime/sessions/{session_id}/tasks/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete Task */
+        post: operations["complete_task_api_runtime_sessions__session_id__tasks_complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runtime/sessions/{session_id}/artifacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record Artifact */
+        post: operations["record_artifact_api_runtime_sessions__session_id__artifacts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runtime/sessions/{session_id}/reassign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reassign
+         * @description Hand a quarantined worker's task to a genuinely new replacement.
+         *
+         *     The replacement's seed context is validated here: naming a tainted
+         *     artifact is a 409, not a warning. That check is the difference between
+         *     containment and theatre.
+         */
+        post: operations["reassign_api_runtime_sessions__session_id__reassign_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runtime/sessions/{session_id}/test-run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Test Run
+         * @description Record a real test run. A red run is recorded red -- that honesty is
+         *     the reason a real run is in the demo instead of a claim.
+         */
+        post: operations["record_test_run_api_runtime_sessions__session_id__test_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runtime/sessions/{session_id}/recover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Recover */
+        post: operations["recover_api_runtime_sessions__session_id__recover_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runtime/sessions/{session_id}/fail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fail */
+        post: operations["fail_api_runtime_sessions__session_id__fail_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runtime/sessions/{session_id}/explanation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Explanation
+         * @description Runs strictly after the deterministic decision is recorded, and never
+         *     feeds back into it (docs/ARCHITECTURE.md §4).
+         */
+        get: operations["get_explanation_api_runtime_sessions__session_id__explanation_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/schema/events": {
         parameters: {
             query?: never;
@@ -481,6 +798,35 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ArtifactRequest */
+        ArtifactRequest: {
+            /** Id */
+            id: string;
+            /** Worker Id */
+            worker_id: string;
+            /** Kind */
+            kind: string;
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+        };
+        /** ArtifactView */
+        ArtifactView: {
+            /** Id */
+            id: string;
+            /** Worker Id */
+            worker_id: string;
+            /** Kind */
+            kind: string;
+            /** Summary */
+            summary: string;
+            /** Trusted */
+            trusted: boolean;
+            /** Taint Reason */
+            taint_reason?: string | null;
+        };
         /** AttackPathsResponse */
         AttackPathsResponse: {
             /** Paths */
@@ -582,7 +928,7 @@ export interface components {
          * EventType
          * @enum {string}
          */
-        EventType: "EXPERIMENT_STARTED" | "EXPERIMENT_STOPPED" | "AGENT_CREATED" | "AGENT_STARTED" | "AGENT_STOPPED" | "MESSAGE_SENT" | "MESSAGE_RECEIVED" | "MODEL_REQUESTED" | "MODEL_RESPONDED" | "TOOL_REQUESTED" | "TOOL_EXECUTED" | "TOOL_DENIED" | "MEMORY_READ" | "MEMORY_WRITE" | "CREDENTIAL_ACCESSED" | "CREDENTIAL_REVOKED" | "COMPROMISE_ATTEMPTED" | "COMPROMISE_SUCCEEDED" | "COMPROMISE_FAILED" | "ANOMALY_DETECTED" | "AGENT_QUARANTINED" | "AGENT_RELEASED" | "PERMISSION_CHANGED" | "INFERENCE_DISABLED" | "THREAT_SIGNATURE_PUBLISHED" | "THREAT_SIGNATURE_RECEIVED" | "AGENT_RECOVERED" | "POLICY_VIOLATION" | "ATTESTATION_ISSUED" | "ATTESTATION_VERIFIED";
+        EventType: "EXPERIMENT_STARTED" | "EXPERIMENT_STOPPED" | "AGENT_CREATED" | "AGENT_STARTED" | "AGENT_STOPPED" | "MESSAGE_SENT" | "MESSAGE_RECEIVED" | "MODEL_REQUESTED" | "MODEL_RESPONDED" | "TOOL_REQUESTED" | "TOOL_EXECUTED" | "TOOL_DENIED" | "MEMORY_READ" | "MEMORY_WRITE" | "CREDENTIAL_ACCESSED" | "CREDENTIAL_REVOKED" | "COMPROMISE_ATTEMPTED" | "COMPROMISE_SUCCEEDED" | "COMPROMISE_FAILED" | "ANOMALY_DETECTED" | "AGENT_QUARANTINED" | "AGENT_RELEASED" | "PERMISSION_CHANGED" | "INFERENCE_DISABLED" | "THREAT_SIGNATURE_PUBLISHED" | "THREAT_SIGNATURE_RECEIVED" | "AGENT_RECOVERED" | "POLICY_VIOLATION" | "ATTESTATION_ISSUED" | "ATTESTATION_VERIFIED" | "TASK_ASSIGNED" | "TASK_REASSIGNED" | "TASK_COMPLETED" | "WORKFLOW_RECOVERED";
         /** ExperimentConfig */
         ExperimentConfig: {
             /** Seed */
@@ -801,6 +1147,11 @@ export interface components {
             last_seq: number;
             config: components["schemas"]["ExperimentConfig"];
         };
+        /** FailRequest */
+        FailRequest: {
+            /** Reason */
+            reason: string;
+        };
         /** GraphEdgeView */
         GraphEdgeView: {
             /** Source */
@@ -829,6 +1180,28 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /**
+         * IncidentExplanation
+         * @description Post-hoc commentary on an already-made deterministic decision.
+         *
+         *     `source` is surfaced in the UI so a reader always knows whether a model
+         *     wrote this. It is never an input to a policy outcome.
+         */
+        IncidentExplanation: {
+            /** Available */
+            available: boolean;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "openai" | "deterministic" | "none";
+            /** Headline */
+            headline: string;
+            /** Body */
+            body: string;
+            /** Model */
+            model?: string | null;
+        };
         JsonValue: unknown;
         /** MetricsResponse */
         MetricsResponse: {
@@ -850,6 +1223,43 @@ export interface components {
             detection_latency?: number | null;
             /** Containment Latency */
             containment_latency?: number | null;
+        };
+        /**
+         * ModelCallRequest
+         * @description Evidence that a worker's reasoning came from a real model call.
+         *
+         *     Carries what identifies the call and how long it took -- never a prompt, a
+         *     completion, or a credential. It exists so "this worker was model-backed"
+         *     is a recorded fact on the event stream rather than a claim in a README.
+         */
+        ModelCallRequest: {
+            /** Worker Id */
+            worker_id: string;
+            /** Provider */
+            provider: string;
+            /** Model */
+            model: string;
+            /**
+             * Endpoint Host
+             * @default
+             */
+            endpoint_host: string;
+            /** Latency Ms */
+            latency_ms: number;
+            /**
+             * Prompt Chars
+             * @default 0
+             */
+            prompt_chars: number;
+            /**
+             * Response Chars
+             * @default 0
+             */
+            response_chars: number;
+            /** Prompt Tokens */
+            prompt_tokens?: number | null;
+            /** Completion Tokens */
+            completion_tokens?: number | null;
         };
         /**
          * NodeType
@@ -879,6 +1289,16 @@ export interface components {
             /** Chain */
             chain: string[];
         };
+        /** ReassignRequest */
+        ReassignRequest: {
+            /** From Worker Id */
+            from_worker_id: string;
+            to_worker: components["schemas"]["WorkerSpec"];
+            /** Task */
+            task: string;
+            /** Context Artifact Ids */
+            context_artifact_ids?: string[];
+        };
         /** RecommendationView */
         RecommendationView: {
             /** Description */
@@ -888,10 +1308,113 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** RecoverRequest */
+        RecoverRequest: {
+            /** Summary */
+            summary: string;
+        };
         /** RemediationResponse */
         RemediationResponse: {
             /** Recommendations */
             recommendations: components["schemas"]["RecommendationView"][];
+        };
+        /** ResourceDecision */
+        ResourceDecision: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "allow" | "deny";
+            /** Rule */
+            rule: string;
+            /** Reason */
+            reason: string;
+            /** Resource Path */
+            resource_path: string;
+            /** Normalized Path */
+            normalized_path?: string | null;
+            /**
+             * Quarantined
+             * @default false
+             */
+            quarantined: boolean;
+            /**
+             * Recovery Required
+             * @default false
+             */
+            recovery_required: boolean;
+            /** Content */
+            content?: string | null;
+            /** Error */
+            error?: string | null;
+        };
+        /**
+         * ResourceRequest
+         * @description THE decision request. Nothing is read before it is answered.
+         */
+        ResourceRequest: {
+            /** Worker Id */
+            worker_id: string;
+            /** Resource Path */
+            resource_path: string;
+            /**
+             * Include Content
+             * @default true
+             */
+            include_content: boolean;
+        };
+        /** RuntimeEventPage */
+        RuntimeEventPage: {
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /** Last Seq */
+            last_seq: number;
+            /** Events */
+            events: components["schemas"]["Event"][];
+        };
+        /** RuntimeResetResponse */
+        RuntimeResetResponse: {
+            /** Cleared */
+            cleared: number;
+        };
+        /** RuntimeSessionSummary */
+        RuntimeSessionSummary: {
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            /** Objective */
+            objective: string;
+            /**
+             * Workflow State
+             * @enum {string}
+             */
+            workflow_state: "idle" | "running" | "under_attack" | "recovering" | "recovered" | "failed";
+            /** Step */
+            step: number;
+            /** Last Seq */
+            last_seq: number;
+            /** Attack Detected */
+            attack_detected: boolean;
+            /** Recovery Required */
+            recovery_required: boolean;
+            /**
+             * Model Calls
+             * @default 0
+             */
+            model_calls: number;
+            /** Tests Passed */
+            tests_passed?: boolean | null;
+            /** Test Summary */
+            test_summary?: string | null;
+            /** Workers */
+            workers: components["schemas"]["WorkerView"][];
+            /** Artifacts */
+            artifacts: components["schemas"]["ArtifactView"][];
         };
         /** SecurityGraphView */
         SecurityGraphView: {
@@ -905,6 +1428,18 @@ export interface components {
          * @enum {string}
          */
         SecurityState: "healthy" | "suspicious" | "compromised" | "quarantined" | "recovered";
+        /** SessionCreateRequest */
+        SessionCreateRequest: {
+            /** Objective */
+            objective: string;
+            /** Workers */
+            workers?: components["schemas"]["WorkerSpec"][];
+            /**
+             * Reset
+             * @default true
+             */
+            reset: boolean;
+        };
         /** SnapshotFrame */
         SnapshotFrame: {
             /**
@@ -936,6 +1471,38 @@ export interface components {
             /** Multiplier */
             multiplier: number;
         };
+        /** TaskCompleteRequest */
+        TaskCompleteRequest: {
+            /** Worker Id */
+            worker_id: string;
+            /** Step */
+            step: string;
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+        };
+        /** TaskStartRequest */
+        TaskStartRequest: {
+            /** Worker Id */
+            worker_id: string;
+            /** Task */
+            task: string;
+        };
+        /** TestRunRequest */
+        TestRunRequest: {
+            /** Worker Id */
+            worker_id: string;
+            /** Command */
+            command: string;
+            /** Exit Code */
+            exit_code: number;
+            /** Passed */
+            passed: boolean;
+            /** Summary */
+            summary: string;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -948,6 +1515,52 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** WorkerRegistrationRequest */
+        WorkerRegistrationRequest: {
+            worker: components["schemas"]["WorkerSpec"];
+        };
+        /**
+         * WorkerSpec
+         * @description One worker the flow is about to run.
+         */
+        WorkerSpec: {
+            /** Id */
+            id: string;
+            /** Role */
+            role: string;
+            /** Upstream */
+            upstream?: string[];
+            /** Replaces */
+            replaces?: string | null;
+            /**
+             * Model Backed
+             * @default false
+             */
+            model_backed: boolean;
+        };
+        /** WorkerView */
+        WorkerView: {
+            /** Id */
+            id: string;
+            /** Role */
+            role: string;
+            security_state: components["schemas"]["SecurityState"];
+            /** Current Task */
+            current_task?: string | null;
+            /** Upstream */
+            upstream?: string[];
+            /** Replaces */
+            replaces?: string | null;
+            /**
+             * Model Backed
+             * @default false
+             */
+            model_backed: boolean;
+            /** Quarantine Reason */
+            quarantine_reason?: string | null;
+            /** Step Quarantined */
+            step_quarantined?: number | null;
         };
     };
     responses: never;
@@ -1749,6 +2362,555 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RemediationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_session_api_runtime_sessions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeSessionSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_sessions_api_runtime_sessions_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeResetResponse"];
+                };
+            };
+        };
+    };
+    get_current_session_api_runtime_sessions_current_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeSessionSummary"];
+                };
+            };
+        };
+    };
+    get_session_api_runtime_sessions__session_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeSessionSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_session_events_api_runtime_sessions__session_id__events_get: {
+        parameters: {
+            query?: {
+                since_seq?: number;
+            };
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeEventPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_session_snapshot_api_runtime_sessions__session_id__snapshot_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SnapshotFrame"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_worker_api_runtime_sessions__session_id__workers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkerRegistrationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeSessionSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_resource_api_runtime_sessions__session_id__resource_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResourceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceDecision"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_model_call_api_runtime_sessions__session_id__model_call_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelCallRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeSessionSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_task_api_runtime_sessions__session_id__tasks_start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskStartRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeSessionSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    complete_task_api_runtime_sessions__session_id__tasks_complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TaskCompleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeSessionSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_artifact_api_runtime_sessions__session_id__artifacts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArtifactRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeSessionSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reassign_api_runtime_sessions__session_id__reassign_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReassignRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeSessionSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_test_run_api_runtime_sessions__session_id__test_run_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TestRunRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeSessionSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recover_api_runtime_sessions__session_id__recover_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecoverRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeSessionSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fail_api_runtime_sessions__session_id__fail_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FailRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeSessionSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_explanation_api_runtime_sessions__session_id__explanation_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncidentExplanation"];
                 };
             };
             /** @description Validation Error */

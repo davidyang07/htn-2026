@@ -4,7 +4,11 @@
     "deny": [
       "Read(.env)",
       "Read(.env.*)",
-      "Read(secrets/**)"
+      "Read(secrets/**)",
+      "Read(demo_target/secrets/*)",
+      "Read(demo_target/secrets/**)",
+      "Read(./demo_target/secrets/*)",
+      "Read(./demo_target/secrets/**)"
     ]
   }
 }

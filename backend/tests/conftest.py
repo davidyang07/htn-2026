@@ -15,12 +15,21 @@ scoping is both simpler and actually correct here.
 """
 
 import asyncio
+import os
 
 import pytest
 
-from app.config import Settings
-from app.db import check_postgres_reachable, create_pool
-from app.persistence.migrate import run_migrations
+# Settings reads the repository-root .env (app/config.py), so a developer with
+# a real SENTRY_DSN configured would otherwise have every `pytest` run emit
+# traces and logs into the team's actual Sentry project -- and behave
+# differently from CI, which has no .env. An explicit empty env var wins over
+# the dotenv value, and empty is treated as absent everywhere. Set before any
+# `app.*` import, since app.main initializes Sentry at import time.
+os.environ["SENTRY_DSN"] = ""
+
+from app.config import Settings  # noqa: E402
+from app.db import check_postgres_reachable, create_pool  # noqa: E402
+from app.persistence.migrate import run_migrations  # noqa: E402
 
 TEST_SETTINGS = Settings(postgres_db="agentnet_test")
 

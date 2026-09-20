@@ -5,6 +5,7 @@ import {
   IconHistory,
   IconMetrics,
   IconOverview,
+  IconShield,
   IconShieldCheck,
   IconTopology,
   IconWrench,
@@ -25,6 +26,12 @@ export type NavItem = {
 export type NavGroup = { label: string; items: NavItem[] };
 
 export const NAV: NavGroup[] = [
+  {
+    label: "Live",
+    items: [
+      { href: "/demo", label: "Live swarm", icon: IconShield, stage: "Protect" },
+    ],
+  },
   {
     label: "Assess",
     items: [

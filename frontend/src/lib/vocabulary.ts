@@ -7,7 +7,13 @@
 
 import type { Severity } from "@/lib/severity";
 
-export type EventCategory = "attack" | "defense" | "model" | "lifecycle" | "security-plane";
+export type EventCategory =
+  | "attack"
+  | "defense"
+  | "model"
+  | "lifecycle"
+  | "security-plane"
+  | "workflow";
 
 export type EventMeta = {
   label: string;
@@ -31,6 +37,15 @@ const PLANE = (label: string, severity: Severity): EventMeta => ({
   severity,
 });
 const MODEL = (label: string): EventMeta => ({ label, category: "model", severity: "neutral" });
+/** The live runtime's workflow beats (docs/ARCHITECTURE.md §7.2). A real
+ * multi-agent run needs its own category: "the team handed the task over" is
+ * neither an attack nor a defense, and burying it in lifecycle would hide the
+ * recovery, which is the part the Live Swarm Demo exists to show. */
+const WORKFLOW = (label: string, severity: Severity = "neutral"): EventMeta => ({
+  label,
+  category: "workflow",
+  severity,
+});
 const LIFECYCLE = (label: string): EventMeta => ({
   label,
   category: "lifecycle",
@@ -73,6 +88,11 @@ export const EVENT_META: Record<string, EventMeta> = {
   THREAT_SIGNATURE_RECEIVED: PLANE("Threat signature received", "neutral"),
   ATTESTATION_ISSUED: PLANE("Attestation issued", "neutral"),
   ATTESTATION_VERIFIED: PLANE("Attestation verified", "neutral"),
+
+  TASK_ASSIGNED: WORKFLOW("Task assigned"),
+  TASK_REASSIGNED: WORKFLOW("Task reassigned", "contained"),
+  TASK_COMPLETED: WORKFLOW("Task completed", "ok"),
+  WORKFLOW_RECOVERED: WORKFLOW("Workflow recovered", "ok"),
 };
 
 export function eventMeta(eventType: string): EventMeta {
@@ -103,6 +123,7 @@ export const EVENT_CATEGORY_LABEL: Record<EventCategory, string> = {
   "security-plane": "Security plane",
   model: "Model / tool",
   lifecycle: "Lifecycle",
+  workflow: "Workflow",
 };
 
 // --- Security-graph node types -------------------------------------------

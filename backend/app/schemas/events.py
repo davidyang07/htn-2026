@@ -45,6 +45,21 @@ class EventType(StrEnum):
     # deterministic, no LLM judge needed.
     ATTESTATION_ISSUED = "ATTESTATION_ISSUED"
     ATTESTATION_VERIFIED = "ATTESTATION_VERIFIED"
+    # Live runtime (docs/ARCHITECTURE.md §7.2): the four beats of a real
+    # multi-agent workflow that no existing member can express. Everything
+    # else in the Live Swarm Demo rides an existing type plus a metadata
+    # discriminator. Four, no more.
+    #
+    # Additive enum members only -- SCHEMA_VERSION stays 1, and the
+    # frontend's vocabulary.ts::eventMeta already falls back gracefully for
+    # an unknown type. Deliberately NOT added to M0/M1/PHASE_2_EVENT_TYPES
+    # (those describe the simulator's milestones) nor to
+    # INCIDENT_EVENT_TYPES (which is pinned to the frontend reducer's literal
+    # set by test_incident_event_types_parity.py).
+    TASK_ASSIGNED = "TASK_ASSIGNED"
+    TASK_REASSIGNED = "TASK_REASSIGNED"
+    TASK_COMPLETED = "TASK_COMPLETED"  # metadata.step = "patch" | "pytest" | "review"
+    WORKFLOW_RECOVERED = "WORKFLOW_RECOVERED"
 
 
 # M0 emits only this subset (SPEC §3.5).

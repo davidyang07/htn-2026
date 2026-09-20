@@ -18,12 +18,15 @@ build/
 .env
 .env.local
 .env*.local
+.venv-workswarm/
 
 # OS / editor
 .DS_Store
 
 # Logs
 *.log
+# WorkSwarm's engine writes its own run logs here on import.
+logs/
 
 # Determinism verification artifacts
 .artifacts/
@@ -34,5 +37,8 @@ CLAUDE.local.md
 
 # Planning docs (not authoritative — SPEC.md/BRIEF.md are)
 docs/*_PLAN.md
+# ...except the hackathon MVP implementation plan, which is authoritative
+# for the WorkSwarm live-runtime pivot and must be committed.
+!docs/MVP_PLAN.md
 
 .worktrees/

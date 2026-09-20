@@ -1,4 +1,4 @@
-.PHONY: dev test lint types verify-determinism migrate benchmark benchmark-audit golden-demo import-demo agentshield-test
+.PHONY: dev test test-bridge test-demo-target lint types verify-determinism migrate benchmark benchmark-audit golden-demo import-demo agentshield-test demo-backend demo-frontend demo-run demo-reset
 
 dev:
 	docker compose up --build
@@ -15,6 +15,12 @@ test:
 
 lint:
 	cd backend && .venv/bin/ruff check .
+	# The bridge is part of what a p0-baseline tag promises, so it is linted
+	# too, with the backend's rule set. demo_target/ is deliberately excluded:
+	# it is a separate mini-project with its own import root (`app`), which
+	# this config would misread as third-party -- and its files are rewritten
+	# by the Developer worker every run.
+	backend/.venv/bin/ruff check --config backend/pyproject.toml workswarm/
 	cd frontend && npm run lint
 	# Next 16 generates PageProps/LayoutProps/RouteContext helpers on demand
 	# (next dev/build/typegen) rather than shipping them as static types --
@@ -26,6 +32,39 @@ lint:
 # `cd backend && .venv/bin/uvicorn app.main:app`).
 types:
 	cd frontend && npx openapi-typescript http://localhost:8000/openapi.json -o src/lib/api/schema.d.ts
+
+# --- Live Swarm Demo (docs/DEMO.md) ---------------------------------------
+#
+# AgentShield runs on 8100 because WorkSwarm also defaults to 8000. The code
+# defaults stay 8000, so the existing simulator setup and CI are untouched --
+# these targets are the documented non-conflicting local setup.
+AGENTSHIELD_PORT ?= 8100
+
+# Terminal 2.
+demo-backend:
+	cd backend && .venv/bin/uvicorn app.main:app --reload --port $(AGENTSHIELD_PORT)
+
+# Terminal 3.
+demo-frontend:
+	cd frontend && NEXT_PUBLIC_BACKEND_URL=http://localhost:$(AGENTSHIELD_PORT) NEXT_PUBLIC_BACKEND_WS_URL=ws://localhost:$(AGENTSHIELD_PORT) npm run dev
+
+# Terminal 4 -- the demo trigger. Uses the separate WorkSwarm venv.
+demo-run:
+	AGENTSHIELD_BASE_URL=http://localhost:$(AGENTSHIELD_PORT) .venv-workswarm/bin/python workswarm/run_demo.py
+
+# Between runs: restores the vulnerable baseline and clears live sessions.
+demo-reset:
+	AGENTSHIELD_BASE_URL=http://localhost:$(AGENTSHIELD_PORT) .venv-workswarm/bin/python workswarm/reset_demo.py
+
+# The WorkSwarm-side bridge tests. Deliberately runnable with the backend's
+# own venv -- they never import the WorkSwarm engine, so the security-relevant
+# half of the integration is verifiable without installing WorkSwarm.
+test-bridge:
+	backend/.venv/bin/python -m pytest workswarm
+
+# The vulnerable demo application's own suite.
+test-demo-target:
+	backend/.venv/bin/python -m pytest demo_target
 
 verify-determinism:
 	cd backend && .venv/bin/python scripts/verify_determinism.py
