@@ -10,7 +10,9 @@ def test_workswarm_sponsor_model_is_preferred_without_direct_openai_key():
     settings = Settings(_env_file=None, openai_api_key=None)
     workswarm_model = SimpleNamespace(
         configured=True,
-        provider="OpenRouter",
+        # WorkSwarm names the OpenAI-compatible client adapter, while the
+        # endpoint host identifies the actual sponsor gateway.
+        provider="OpenAI",
         model_name="sponsor/model",
         api_key="sponsor-secret",
         api_base="https://openrouter.ai/api/v1",

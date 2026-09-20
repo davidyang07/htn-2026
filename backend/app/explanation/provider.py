@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 from typing import Protocol
+from urllib.parse import urlparse
 
 from app.config import REPO_ROOT, Settings
 
@@ -86,7 +87,9 @@ def _from_settings(settings: Settings) -> ExplanationProvider | None:
     model = settings.optional("agentshield_model_name")
     if base and model:
         return ExplanationProvider(
-            provider=settings.optional("agentshield_model_provider") or "OpenAI-compatible",
+            provider=_provider_name(
+                settings.optional("agentshield_model_provider"), base
+            ),
             model=model,
             api_base=base,
             api_key=settings.optional("agentshield_model_api_key"),
@@ -107,6 +110,14 @@ def _from_settings(settings: Settings) -> ExplanationProvider | None:
     return None
 
 
+def _provider_name(configured_name: str | None, api_base: str) -> str:
+    """Name the service, not merely its OpenAI-compatible client adapter."""
+    hostname = (urlparse(api_base).hostname or "").lower()
+    if hostname == "openrouter.ai" or hostname.endswith(".openrouter.ai"):
+        return "OpenRouter"
+    return (configured_name or "OpenAI-compatible").strip() or "OpenAI-compatible"
+
+
 def resolve_explanation_provider(
     settings: Settings,
     workswarm_resolver: Callable[[], CompatibleModelConfig | None] = _workswarm_resolver,
@@ -122,7 +133,7 @@ def resolve_explanation_provider(
         if base and name:
             key = str(model.api_key).strip() or None
             return ExplanationProvider(
-                provider=str(model.provider).strip() or "OpenAI-compatible",
+                provider=_provider_name(str(model.provider), base),
                 model=name,
                 api_base=base,
                 api_key=key if key != "not-required" else None,
