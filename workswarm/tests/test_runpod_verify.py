@@ -1,6 +1,7 @@
 import httpx
 import pytest
 
+from workswarm.check_runpod import report_payload
 from workswarm.config import ModelConfig
 from workswarm.runpod_verify import RunPodVerifier, endpoint_urls
 
@@ -216,3 +217,28 @@ def test_startup_measurement_polls_until_healthy():
     assert result.healthy is True
     assert result.attempts == 3
     assert result.cold_start_ms >= 0
+
+
+def test_health_report_is_useful_but_never_contains_credentials_or_full_url():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/health":
+            return httpx.Response(200)
+        if request.url.path == "/v1/models":
+            return httpx.Response(
+                200, json={"data": [{"id": "Qwen/Qwen2.5-Coder-7B-Instruct"}]}
+            )
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": "ready"}}]}
+        )
+
+    model = _model()
+    verifier = RunPodVerifier(model, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    payload = report_payload(model, verifier.verify())
+    serialized = str(payload)
+
+    assert payload["ready"] is True
+    assert payload["endpoint_host"] == "pod.invalid"
+    assert payload["first_completion"]["latency_ms"] >= 0
+    assert payload["warm_completion"]["latency_ms"] >= 0
+    assert "test-token" not in serialized
+    assert "https://" not in serialized
