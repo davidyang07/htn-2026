@@ -103,7 +103,11 @@ export function RunHeader({
                 </span>
               </span>
             ) : (
-              <span className="text-fg-subtle">no model call recorded</span>
+              // With no session there is nothing to report yet; with one, the
+              // absence of a model call is itself worth saying.
+              <span className="text-fg-subtle">
+                {summary ? "no model call recorded" : "—"}
+              </span>
             )}
           </Meta>
           <Meta label="Session">

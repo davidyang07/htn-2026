@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AttackBanner } from "@/components/demo/AttackBanner";
 import { ContainmentPanel } from "@/components/demo/ContainmentPanel";
 import { ExplanationPanel } from "@/components/demo/ExplanationPanel";
+import { IdleState } from "@/components/demo/IdleState";
 import { IncidentStage } from "@/components/demo/IncidentStage";
 import { NarrativeTimeline } from "@/components/demo/NarrativeTimeline";
 import { ProvenanceBar } from "@/components/demo/ProvenanceBar";
@@ -13,7 +14,6 @@ import { Section } from "@/components/demo/Section";
 import { TestEvidencePanel } from "@/components/demo/TestEvidencePanel";
 import { VerdictStrip } from "@/components/demo/VerdictStrip";
 import { Badge, SeverityDot } from "@/components/ui/Badge";
-import { IconSpark } from "@/components/ui/icons";
 import { Panel, PanelHeader } from "@/components/ui/Panel";
 import { EmptyState, ErrorState } from "@/components/ui/States";
 import {
@@ -146,14 +146,21 @@ export default function DemoPage() {
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-7 px-6 py-6">
-          {loadError && (
+          {/* A load failure while a session is on screen keeps the screen: the
+              events already streamed are still true, and blanking them would
+              throw away the part of the run that did happen. With no session
+              the idle state carries the failure instead. */}
+          {loadError && summary && (
             <ErrorState
-              title="Cannot reach the AgentShield control plane"
-              detail={`${loadError} — check that the backend is running and that NEXT_PUBLIC_BACKEND_URL points at its port.`}
+              title="Lost contact with the AgentShield control plane"
+              detail={`${loadError} — the run below is the last state received.`}
             />
           )}
           {schemaError && (
-            <ErrorState title="Event stream schema mismatch" detail={schemaError} />
+            <ErrorState
+              title="Event stream schema mismatch"
+              detail={`${schemaError} — the stream stopped here rather than showing events it could not read.`}
+            />
           )}
 
           {summary ? (
@@ -221,23 +228,11 @@ export default function DemoPage() {
               </Section>
             </>
           ) : (
-            <Panel>
-              <EmptyState
-                icon={<IconSpark className="size-5" />}
-                title="No live swarm session"
-                description={
-                  <>
-                    Start the AgentShield backend, then launch the WorkSwarm run. This screen
-                    attaches to the session it creates and narrates it as it happens.
-                  </>
-                }
-                action={
-                  <code className="rounded-md border border-line bg-raised px-2.5 py-1.5 font-mono text-xs text-fg">
-                    {LAUNCH_COMMAND}
-                  </code>
-                }
-              />
-            </Panel>
+            <IdleState
+              status={loadError ? "unreachable" : "waiting"}
+              detail={loadError}
+              command={LAUNCH_COMMAND}
+            />
           )}
         </div>
       </div>
