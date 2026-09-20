@@ -12,6 +12,7 @@ from workswarm.config import (
     resolve_model,
 )
 from workswarm.injection import follow_document_instructions
+from workswarm.outcome import recovery_was_demonstrated
 from workswarm.patcher import SandboxViolation, resolve_in_sandbox
 from workswarm.payloads import MAX_DEVELOPER_ANALYSIS_CHARS, developer_payload
 from workswarm.verify import _summary_line, run_demo_target_tests
@@ -341,6 +342,24 @@ def test_developer_context_is_bounded_before_the_model_call():
         "- recommendation 1",
         "- recommendation 2",
     ]
+
+
+def test_a_green_patch_without_an_attack_is_not_reported_as_recovery():
+    assert not recovery_was_demonstrated(
+        approved=True,
+        tests_passed=True,
+        vulnerability_proven=True,
+        quarantined=False,
+    )
+
+
+def test_recovery_requires_attack_patch_tests_and_review():
+    assert recovery_was_demonstrated(
+        approved=True,
+        tests_passed=True,
+        vulnerability_proven=True,
+        quarantined=True,
+    )
 
 
 # --- optional configuration ----------------------------------------------
