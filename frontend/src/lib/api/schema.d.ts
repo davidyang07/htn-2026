@@ -841,6 +841,16 @@ export interface components {
             /** Fraction */
             fraction: number;
         };
+        /** ContainmentEvidence */
+        ContainmentEvidence: {
+            /**
+             * Tainted Artifact Ids
+             * @default []
+             */
+            tainted_artifact_ids: string[];
+            /** Excluded From Replacement Context */
+            excluded_from_replacement_context?: boolean | null;
+        };
         /** CriticalNodeView */
         CriticalNodeView: {
             /** Id */
@@ -1147,6 +1157,19 @@ export interface components {
             last_seq: number;
             config: components["schemas"]["ExperimentConfig"];
         };
+        /** ExplanationSections */
+        ExplanationSections: {
+            /** What Happened */
+            what_happened: string;
+            /** Why Blocked */
+            why_blocked: string;
+            /** What Was Contained */
+            what_was_contained: string;
+            /** How Swarm Recovered */
+            how_swarm_recovered: string;
+            /** Recovery Evidence */
+            recovery_evidence: string;
+        };
         /** FailRequest */
         FailRequest: {
             /** Reason */
@@ -1181,11 +1204,40 @@ export interface components {
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
+         * IncidentEvidence
+         * @description Safe facts copied from the recorded event stream, never raw payloads.
+         */
+        IncidentEvidence: {
+            /**
+             * Schema Version
+             * @default 1
+             * @constant
+             */
+            schema_version: "1";
+            /**
+             * Session Id
+             * Format: uuid
+             */
+            session_id: string;
+            worker: components["schemas"]["IncidentWorkerEvidence"];
+            /** Requested Resource Path */
+            requested_resource_path: string;
+            policy: components["schemas"]["PolicyEvidence"];
+            quarantine: components["schemas"]["QuarantineEvidence"];
+            containment: components["schemas"]["ContainmentEvidence"];
+            replacement?: components["schemas"]["ReplacementEvidence"] | null;
+            before_fix_test?: components["schemas"]["TestEvidence"] | null;
+            after_fix_test?: components["schemas"]["TestEvidence"] | null;
+            reviewer?: components["schemas"]["ReviewerEvidence"] | null;
+            /**
+             * Final Recovery State
+             * @enum {string}
+             */
+            final_recovery_state: "under_attack" | "recovering" | "recovered" | "failed";
+        };
+        /**
          * IncidentExplanation
-         * @description Post-hoc commentary on an already-made deterministic decision.
-         *
-         *     `source` is surfaced in the UI so a reader always knows whether a model
-         *     wrote this. It is never an input to a policy outcome.
+         * @description Commentary whose authority is explicitly separate from the verdict.
          */
         IncidentExplanation: {
             /** Available */
@@ -1195,12 +1247,29 @@ export interface components {
              * @enum {string}
              */
             source: "openai" | "deterministic" | "none";
+            /** Label */
+            label: string;
+            /** Authority */
+            authority: string;
             /** Headline */
             headline: string;
             /** Body */
             body: string;
+            sections?: components["schemas"]["ExplanationSections"] | null;
+            evidence?: components["schemas"]["IncidentEvidence"] | null;
+            /** Provider */
+            provider?: string | null;
             /** Model */
             model?: string | null;
+        };
+        /** IncidentWorkerEvidence */
+        IncidentWorkerEvidence: {
+            /** Worker Id */
+            worker_id: string;
+            /** Role */
+            role: string;
+            /** Assigned Task */
+            assigned_task?: string | null;
         };
         JsonValue: unknown;
         /** MetricsResponse */
@@ -1300,10 +1369,34 @@ export interface components {
              */
             agent_kind: "simulated" | "real";
         };
+        /** PolicyEvidence */
+        PolicyEvidence: {
+            /** Rule */
+            rule: string;
+            /**
+             * Outcome
+             * @default deny
+             * @constant
+             */
+            outcome: "deny";
+            /** Reason */
+            reason: string;
+        };
         /** ProvenanceResponse */
         ProvenanceResponse: {
             /** Chain */
             chain: string[];
+        };
+        /** QuarantineEvidence */
+        QuarantineEvidence: {
+            /** Worker Id */
+            worker_id: string;
+            /**
+             * State
+             * @default quarantined
+             * @constant
+             */
+            state: "quarantined";
         };
         /** ReassignRequest */
         ReassignRequest: {
@@ -1333,6 +1426,15 @@ export interface components {
         RemediationResponse: {
             /** Recommendations */
             recommendations: components["schemas"]["RecommendationView"][];
+        };
+        /** ReplacementEvidence */
+        ReplacementEvidence: {
+            /** Quarantined Worker Id */
+            quarantined_worker_id: string;
+            /** Replacement Worker Id */
+            replacement_worker_id: string;
+            /** Replacement Role */
+            replacement_role: string;
         };
         /** ResourceDecision */
         ResourceDecision: {
@@ -1378,6 +1480,13 @@ export interface components {
              * @default true
              */
             include_content: boolean;
+        };
+        /** ReviewerEvidence */
+        ReviewerEvidence: {
+            /** Worker Id */
+            worker_id: string;
+            /** Result */
+            result: string;
         };
         /** RuntimeEventPage */
         RuntimeEventPage: {
@@ -1505,6 +1614,15 @@ export interface components {
             worker_id: string;
             /** Task */
             task: string;
+        };
+        /** TestEvidence */
+        TestEvidence: {
+            /** Passed */
+            passed: boolean;
+            /** Exit Code */
+            exit_code?: number | null;
+            /** Summary */
+            summary: string;
         };
         /** TestRunRequest */
         TestRunRequest: {
