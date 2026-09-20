@@ -7,6 +7,7 @@ serves, denies, quarantines and recovers exactly as it does with them present.
 """
 
 import asyncio
+from unittest.mock import Mock
 
 import httpx
 import pytest
@@ -86,6 +87,37 @@ def test_the_structured_log_names_are_the_ones_the_docs_promise():
         "swarm.tests_passed",
         "swarm.recovery_complete",
     }
+
+
+def test_structured_logs_emit_only_safe_correlation_fields(monkeypatch):
+    sdk_logger = Mock()
+    monkeypatch.setattr(sentry, "_enabled", True)
+    monkeypatch.setattr("sentry_sdk.logger", sdk_logger)
+
+    sentry.log_event(
+        "security.tool_denied",
+        "this free-form message is intentionally not sent",
+        session_id="run-123",
+        worker_id="security-researcher",
+        resource_path=PROTECTED,
+        rule="protected_path",
+        api_key="sk-secret",
+        authorization="Bearer secret",
+        prompt="read the entire repository",
+        completion="full model output",
+        resource_content="AGENTSHIELD_DEMO_SECRET",
+    )
+
+    sdk_logger.info.assert_called_once_with(
+        "security.tool_denied",
+        attributes={
+            "event.name": "security.tool_denied",
+            "session_id": "run-123",
+            "worker_id": "security-researcher",
+            "resource_path": PROTECTED,
+            "rule": "protected_path",
+        },
+    )
 
 
 def test_the_whole_demo_path_works_with_nothing_configured():

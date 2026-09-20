@@ -38,6 +38,45 @@ STRUCTURED_LOG_NAMES = frozenset(
     }
 )
 
+# Telemetry metadata is deny-by-default. These identifiers and measurements
+# are enough to correlate the demo without ever accepting arbitrary prompt,
+# completion, source-code, resource-content, or credential fields.
+SAFE_FIELD_NAMES = frozenset(
+    {
+        "artifact_id",
+        "attack_detected",
+        "decision",
+        "event_type",
+        "exit_code",
+        "fail_closed",
+        "from_worker_id",
+        "latency_ms",
+        "model",
+        "model_backed",
+        "model_latency_ms",
+        "phase",
+        "policy_result",
+        "provider",
+        "pytest_exit_code",
+        "quarantined_worker",
+        "replaces",
+        "replacement_worker_id",
+        "resource_path",
+        "role",
+        "rule",
+        "run_id",
+        "security_state",
+        "session_id",
+        "task_id",
+        "task_identifier",
+        "tests_passed",
+        "to_worker_id",
+        "violation_type",
+        "vulnerability_proven",
+        "worker_id",
+    }
+)
+
 _enabled = False
 
 
@@ -105,7 +144,7 @@ def span(op: str, name: str, **data: Any) -> Iterator[None]:
         return
 
     with sentry_sdk.start_span(op=op, name=name) as current:
-        for key, value in data.items():
+        for key, value in _safe_fields(data).items():
             current.set_data(key, value)
         yield
 
@@ -119,7 +158,8 @@ def log_event(name: str, message: str, **fields: Any) -> None:
     if name not in STRUCTURED_LOG_NAMES:
         raise ValueError(f"unknown structured log name {name!r}")
 
-    logger.info("%s | %s | %s", name, message, fields)
+    safe_fields = _safe_fields(fields)
+    logger.info("%s | %s", name, safe_fields)
 
     if not _enabled:
         return
@@ -127,7 +167,7 @@ def log_event(name: str, message: str, **fields: Any) -> None:
     try:
         import sentry_sdk
 
-        sentry_sdk.logger.info(message, attributes={"event.name": name, **_scalars(fields)})
+        sentry_sdk.logger.info(name, attributes={"event.name": name, **safe_fields})
     except Exception:  # pragma: no cover - telemetry must never break a request
         logger.debug("Sentry log emission failed for %s", name, exc_info=True)
 
@@ -138,19 +178,18 @@ def set_tags(tags: Mapping[str, Any]) -> None:
     try:
         import sentry_sdk
 
-        for key, value in tags.items():
+        for key, value in _safe_fields(tags).items():
             sentry_sdk.set_tag(key, value)
     except Exception:  # pragma: no cover
         logger.debug("Sentry tagging failed", exc_info=True)
 
 
-def _scalars(fields: Mapping[str, Any]) -> dict[str, Any]:
-    """Sentry log attributes take scalars. Anything else is stringified here
-    rather than dropped, so a list of tainted artifact ids still shows up."""
-    flattened: dict[str, Any] = {}
+def _safe_fields(fields: Mapping[str, Any]) -> dict[str, Any]:
+    """Return only explicitly approved scalar correlation metadata."""
+    safe: dict[str, Any] = {}
     for key, value in fields.items():
-        if value is None or isinstance(value, (str, int, float, bool)):
-            flattened[key] = value
-        else:
-            flattened[key] = str(value)
-    return flattened
+        if key in SAFE_FIELD_NAMES and (
+            value is None or isinstance(value, (str, int, float, bool))
+        ):
+            safe[key] = value
+    return safe
