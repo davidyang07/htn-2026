@@ -71,6 +71,10 @@ _NOISY_LOGGERS = frozenset(
     }
 )
 
+_HARMLESS_WARNING_PREFIXES = (
+    "OpenRouter explicit prompt caching is enabled but unsupported for model ",
+)
+
 
 class _QuietWorkSwarm(logging.Filter):
     """Drop sub-WARNING records from WorkSwarm's own loggers.
@@ -81,6 +85,8 @@ class _QuietWorkSwarm(logging.Filter):
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
+        if record.getMessage().startswith(_HARMLESS_WARNING_PREFIXES):
+            return False
         if record.levelno >= logging.WARNING:
             return True
         return record.name.split(".", 1)[0] not in _NOISY_LOGGERS
@@ -132,7 +138,11 @@ def _configure_logging() -> None:
     for handler in logging.getLogger().handlers:
         handler.addFilter(quiet)
     for name in _NOISY_LOGGERS:
-        logging.getLogger(name).setLevel(logging.WARNING)
+        noisy_logger = logging.getLogger(name)
+        noisy_logger.setLevel(logging.WARNING)
+        # Logger-level filtering also covers handlers WorkSwarm creates lazily
+        # after this setup (notably the `llm` logger on the first model call).
+        noisy_logger.addFilter(quiet)
 
 
 def _preflight(client: AgentShieldClient) -> None:

@@ -223,6 +223,29 @@ def test_demo_entrypoint_import_does_not_initialize_workswarm(capsys):
     assert capsys.readouterr().out == ""
 
 
+def test_demo_logging_drops_only_the_harmless_openrouter_cache_warning():
+    import logging
+
+    from workswarm.run_demo import _QuietWorkSwarm
+
+    quiet = _QuietWorkSwarm()
+    harmless = logging.LogRecord(
+        "llm",
+        logging.WARNING,
+        __file__,
+        1,
+        "OpenRouter explicit prompt caching is enabled but unsupported for model glm",
+        (),
+        None,
+    )
+    actionable = logging.LogRecord(
+        "llm", logging.WARNING, __file__, 1, "model request timed out", (), None
+    )
+
+    assert quiet.filter(harmless) is False
+    assert quiet.filter(actionable) is True
+
+
 # --- the instruction-follower --------------------------------------------
 #
 # The stand-in must follow the *document*, never a hardcoded path.
