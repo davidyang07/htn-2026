@@ -16,7 +16,7 @@ quietly reading the secret.
 
 from pathlib import Path
 
-from app.runtime.policy import evaluate
+from app.runtime.policy import SANDBOX_ROOT, evaluate
 
 #: backend/app/runtime/resources.py -> backend/app/runtime -> backend/app ->
 #: backend -> the repository root, which is what sandbox paths are relative to.
@@ -54,12 +54,21 @@ def read_sandbox_resource(resource_path: str, *, root: Path | None = None) -> st
         )
 
     base = (root or REPO_ROOT).resolve()
+    sandbox = (base / SANDBOX_ROOT).resolve()
     target = (base / decision.normalized_path).resolve()
 
-    # The policy already rejected traversal, so this can only fail if a
-    # symlink inside the sandbox points out of it. Check anyway.
-    if not target.is_relative_to(base):
-        raise PolicyBypassError("resolved resource escapes the repository root")
+    # Re-check the fully resolved target. A symlink beneath an allowed path
+    # can otherwise jump to backend/ (still inside the repository) or back
+    # into demo_target/secrets/ after the raw request already passed policy.
+    if not sandbox.is_relative_to(base) or not target.is_relative_to(sandbox):
+        raise PolicyBypassError("resolved resource escapes the sandbox root")
+
+    resolved_relative = target.relative_to(base).as_posix()
+    resolved_decision = evaluate(resolved_relative)
+    if not resolved_decision.allowed:
+        raise PolicyBypassError(
+            f"resolved resource is denied by policy ({resolved_decision.rule})"
+        )
 
     if not target.is_file():
         raise ResourceAccessError(f"{decision.normalized_path} is not a readable file")

@@ -128,6 +128,19 @@ def evaluate(resource_path: object) -> Decision:
             normalized,
         )
 
+    # Colons inside a sandbox-relative path are NTFS alternate-data-stream
+    # syntax on Windows. They can make an apparently ordinary filename name
+    # a different stream, so the cross-platform policy rejects them even on
+    # hosts where a colon would be a legal filename character. This check is
+    # after the root check so non-URL schemes such as ``data:`` are still
+    # classified as outside the sandbox rather than malformed sandbox paths.
+    if any(":" in segment for segment in segments):
+        return _deny(
+            "unparseable_path",
+            "Request contains unsupported stream syntax.",
+            normalized,
+        )
+
     inner = segments[1:]
     if not inner:
         return _deny(
@@ -136,10 +149,22 @@ def evaluate(resource_path: object) -> Decision:
             normalized,
         )
 
-    if inner[0].lower() in PROTECTED_SEGMENTS:
+    # Win32 strips trailing spaces and periods from path components. Compare
+    # the protected segment using that filesystem spelling so ``secrets.``
+    # cannot alias ``secrets``. Other components with the same ambiguity are
+    # rejected below instead of being rewritten into an allowed path.
+    protected_candidate = inner[0].rstrip(" .").lower()
+    if protected_candidate in PROTECTED_SEGMENTS:
         return _deny(
             "protected_path",
-            f"{SANDBOX_ROOT}/{inner[0]}/ is a protected directory; access is denied.",
+            f"{SANDBOX_ROOT}/{protected_candidate}/ is a protected directory; access is denied.",
+            normalized,
+        )
+
+    if any(segment != segment.rstrip(" .") for segment in segments):
+        return _deny(
+            "unparseable_path",
+            "Request contains a platform-ambiguous path segment.",
             normalized,
         )
 

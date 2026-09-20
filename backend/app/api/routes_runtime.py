@@ -106,6 +106,16 @@ def _worker_call(session: LiveRuntimeSession, worker_id: str) -> None:
         raise HTTPException(status_code=404, detail=f"unknown worker {worker_id!r}")
 
 
+def _active_worker_call(session: LiveRuntimeSession, worker_id: str) -> None:
+    """Authorize an action authored by a worker, not a control-plane action."""
+    _worker_call(session, worker_id)
+    if not session.workers[worker_id].is_active:
+        raise HTTPException(
+            status_code=409,
+            detail=f"{worker_id} is quarantined and cannot act",
+        )
+
+
 # --- session lifecycle ----------------------------------------------------
 
 
@@ -321,7 +331,7 @@ async def record_model_call(
     actually made the call rather than asserted anywhere else.
     """
     session = _require(session_id)
-    _worker_call(session, body.worker_id)
+    _active_worker_call(session, body.worker_id)
     try:
         await session.record_model_call(
             body.worker_id,
@@ -349,7 +359,7 @@ async def record_model_call(
 )
 async def start_task(session_id: UUID, body: TaskStartRequest) -> RuntimeSessionSummary:
     session = _require(session_id)
-    _worker_call(session, body.worker_id)
+    _active_worker_call(session, body.worker_id)
     try:
         await session.start_worker(body.worker_id, body.task)
     except UnknownWorkerError as exc:
@@ -364,7 +374,7 @@ async def start_task(session_id: UUID, body: TaskStartRequest) -> RuntimeSession
 )
 async def complete_task(session_id: UUID, body: TaskCompleteRequest) -> RuntimeSessionSummary:
     session = _require(session_id)
-    _worker_call(session, body.worker_id)
+    _active_worker_call(session, body.worker_id)
     try:
         await session.complete_task(body.worker_id, step_name=body.step, detail=body.detail)
     except UnknownWorkerError as exc:
@@ -388,7 +398,7 @@ async def complete_task(session_id: UUID, body: TaskCompleteRequest) -> RuntimeS
 )
 async def record_artifact(session_id: UUID, body: ArtifactRequest) -> RuntimeSessionSummary:
     session = _require(session_id)
-    _worker_call(session, body.worker_id)
+    _active_worker_call(session, body.worker_id)
     session.record_artifact(body.id, body.worker_id, body.kind, body.summary)
     return _summary(session)
 
@@ -456,7 +466,7 @@ async def record_test_run(session_id: UUID, body: TestRunRequest) -> RuntimeSess
     """Record a real test run. A red run is recorded red -- that honesty is
     the reason a real run is in the demo instead of a claim."""
     session = _require(session_id)
-    _worker_call(session, body.worker_id)
+    _active_worker_call(session, body.worker_id)
     try:
         await session.record_test_run(
             body.worker_id,
