@@ -1,8 +1,11 @@
+import asyncio
+
 import httpx
 
 import workswarm.config as model_config
 from workswarm.config import NO_MODEL, ModelConfig, resolve_model, resolve_runpod_model
 from workswarm.replacement_provider import (
+    ReplacementFailover,
     select_replacement_provider,
     select_verified_replacement,
 )
@@ -141,3 +144,44 @@ def test_wrong_model_catalog_falls_back_to_sponsor():
     assert resolved.verification.models is not None
     assert resolved.verification.models.expected_model_found is False
     assert "configured model not advertised" in resolved.selection.reason
+
+
+def test_runtime_failure_uses_sponsor_and_records_actual_route():
+    sponsor = _model("sponsor", "https://sponsor.invalid/v1")
+    runpod = _model("runpod", "https://runpod.invalid/v1")
+    failover = ReplacementFailover(runpod, sponsor)
+
+    async def primary():
+        raise ConnectionError("pod disappeared after preflight")
+
+    async def fallback():
+        return {"report": "sponsor answered"}
+
+    result = asyncio.run(failover.invoke(primary, fallback))
+
+    assert result == {"report": "sponsor answered"}
+    assert failover.last_use is not None
+    assert failover.last_use.model is sponsor
+    assert failover.last_use.route == "sponsor_fallback"
+    assert failover.last_use.fallback_used is True
+    assert "ConnectionError" in failover.last_use.reason
+
+
+def test_runtime_success_records_runpod_without_fallback():
+    sponsor = _model("sponsor", "https://sponsor.invalid/v1")
+    runpod = _model("runpod", "https://runpod.invalid/v1")
+    failover = ReplacementFailover(runpod, sponsor)
+
+    async def primary():
+        return {"report": "runpod answered"}
+
+    async def fallback():
+        raise AssertionError("fallback must not run")
+
+    result = asyncio.run(failover.invoke(primary, fallback))
+
+    assert result == {"report": "runpod answered"}
+    assert failover.last_use is not None
+    assert failover.last_use.model is runpod
+    assert failover.last_use.route == "runpod"
+    assert failover.last_use.fallback_used is False
