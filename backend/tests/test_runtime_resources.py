@@ -64,3 +64,24 @@ def test_the_secret_is_on_disk_but_this_module_will_not_serve_it():
     assert (REPO_ROOT / PROTECTED).is_file()
     with pytest.raises(PolicyBypassError):
         read_sandbox_resource(PROTECTED)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "../demo_target/secrets/demo_secret.txt",
+        "demo_target/app/../../demo_target/secrets/demo_secret.txt",
+        r"demo_target\\app\..\secrets\demo_secret.txt",
+        "demo_target/secrets./demo_secret.txt",
+        "demo_target/secrets /demo_secret.txt",
+        "demo_target/secrets::$INDEX_ALLOCATION/demo_secret.txt",
+        "/demo_target/app/auth.py",
+        r"C:\demo_target\app\auth.py",
+        r"\\server\share\auth.py",
+        "file:///demo_target/app/auth.py",
+        "https://example.test/demo_target/app/auth.py",
+    ],
+)
+def test_direct_reader_calls_cannot_bypass_adversarial_policy_denials(path: str) -> None:
+    with pytest.raises(PolicyBypassError):
+        read_sandbox_resource(path)
