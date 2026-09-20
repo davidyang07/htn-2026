@@ -371,10 +371,17 @@ class ShieldGate(ContextComponent):
             self.ctx.denials.append(decision)
             log_event(
                 "security.tool_denied",
-                f"AgentShield denied {SECURITY_RESEARCHER} -> {path}",
-                worker_id=SECURITY_RESEARCHER,
-                resource_path=path,
-                rule=decision.rule,
+                "AgentShield denied a protected resource request",
+                **self.ctx.trace_fields(
+                    SECURITY_RESEARCHER,
+                    event_type="policy_check",
+                    resource_path=path,
+                    rule=decision.rule,
+                    policy_result="deny",
+                    security_state=(
+                        "quarantined" if decision.quarantined else "active"
+                    ),
+                ),
             )
             if decision.quarantined:
                 quarantined = True
@@ -393,8 +400,11 @@ class ShieldGate(ContextComponent):
             log_event(
                 "security.agent_quarantined",
                 "Security Researcher quarantined; its output is untrusted",
-                worker_id=SECURITY_RESEARCHER,
-                requested_files=requested,
+                **self.ctx.trace_fields(
+                    SECURITY_RESEARCHER,
+                    security_state="quarantined",
+                    requested_files=requested,
+                ),
             )
 
         return {
@@ -450,8 +460,13 @@ class ReassignAndFetch(ContextComponent):
         log_event(
             "swarm.replacement_started",
             "Replacement Researcher started with trusted context only",
-            worker_id=REPLACEMENT_RESEARCHER,
-            trusted_artifacts=trusted,
+            **self.ctx.trace_fields(
+                REPLACEMENT_RESEARCHER,
+                replaces=SECURITY_RESEARCHER,
+                replacement_worker_id=REPLACEMENT_RESEARCHER,
+                security_state="active",
+                trusted_artifacts=trusted,
+            ),
         )
 
         # The replacement re-reads the module for itself. It deliberately does
@@ -521,7 +536,11 @@ class DeveloperStep(ContextComponent):
                 f"the Developer could not obtain {AUTH_MODULE}: {decision.reason}"
             )
 
-        with span("developer.patch", "developer.patch", worker_id=DEVELOPER):
+        with span(
+            "developer.regression_test",
+            "developer.regression_test",
+            **self.ctx.trace_fields(DEVELOPER, phase="author_regression"),
+        ):
             started = time.perf_counter()
             # Trimmed on purpose. A reasoning model spends its token budget
             # on thinking before it emits anything, and a verbose upstream
@@ -579,7 +598,11 @@ class ProveVulnerabilityStep(ContextComponent):
     """
 
     async def invoke(self, inputs: Any, session: Any, context: Any) -> Any:
-        with span("pytest.run", "pytest.baseline_regression"):
+        with span(
+            "developer.regression_red",
+            "developer.regression_red",
+            **self.ctx.trace_fields(DEVELOPER, phase="before_fix"),
+        ):
             result = run_demo_target_tests()
 
         proven = not result.passed
@@ -739,7 +762,11 @@ class PytestStep(ContextComponent):
     """
 
     async def invoke(self, inputs: Any, session: Any, context: Any) -> Any:
-        with span("pytest.run", "pytest.after_fix"):
+        with span(
+            "pytest.after_fix",
+            "pytest.after_fix",
+            **self.ctx.trace_fields(DEVELOPER, phase="after_fix"),
+        ):
             result = run_demo_target_tests()
 
         self.ctx.client.record_test_run(
@@ -752,8 +779,14 @@ class PytestStep(ContextComponent):
         if result.passed:
             log_event(
                 "swarm.tests_passed",
-                f"{result.command}: {result.summary}",
-                exit_code=result.exit_code,
+                "Regression suite passed after the fix",
+                **self.ctx.trace_fields(
+                    DEVELOPER,
+                    exit_code=result.exit_code,
+                    pytest_exit_code=result.exit_code,
+                    phase="after_fix",
+                    tests_passed=True,
+                ),
             )
         else:
             logger.error("tests did NOT pass: %s\n%s", result.summary, result.tail)
@@ -778,7 +811,11 @@ class ReviewerStep(ContextComponent):
         task = "Independently verify the patch against the test evidence."
         self.ctx.client.start_task(REVIEWER, task)
 
-        with span("reviewer.verify", "reviewer.verify", worker_id=REVIEWER):
+        with span(
+            "reviewer.verify",
+            "reviewer.verify",
+            **self.ctx.trace_fields(REVIEWER, phase="review"),
+        ):
             started = time.perf_counter()
             produced = await _runnable(self.inner).invoke(
                 {
@@ -828,15 +865,27 @@ class FinishStep(ContextComponent):
         summary_text = inputs.get("verdict") or ""
 
         if approved and tests_passed and self.ctx.vulnerability_proven:
-            self.ctx.client.recover(
-                f"{summary_text} The team completed the task despite one worker "
-                "being compromised mid-run."
-            )
+            with span(
+                "swarm.recovery_complete",
+                "swarm.recovery_complete",
+                **self.ctx.trace_fields(
+                    phase="recovery",
+                    tests_passed=True,
+                    quarantined_worker=self.ctx.quarantined_worker,
+                ),
+            ):
+                self.ctx.client.recover(
+                    f"{summary_text} The team completed the task despite one worker "
+                    "being compromised mid-run."
+                )
             log_event(
                 "swarm.recovery_complete",
-                summary_text,
-                tests_passed=tests_passed,
-                quarantined_worker=self.ctx.quarantined_worker,
+                "Swarm recovery completed",
+                **self.ctx.trace_fields(
+                    phase="recovery",
+                    tests_passed=tests_passed,
+                    quarantined_worker=self.ctx.quarantined_worker,
+                ),
             )
             outcome = "recovered"
         else:

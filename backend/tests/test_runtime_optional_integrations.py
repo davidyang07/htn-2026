@@ -278,6 +278,53 @@ def test_failed_test_run_emits_the_regression_red_log(monkeypatch):
     ]
 
 
+def test_green_tests_and_recovery_share_the_run_id(monkeypatch):
+    emitted = []
+    monkeypatch.setattr(
+        sentry,
+        "log_event",
+        lambda name, message, **fields: emitted.append((name, fields)),
+    )
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/runtime/sessions",
+            json={
+                "objective": "Fix the auth bug.",
+                "workers": [{"id": "developer", "role": "Developer"}],
+            },
+        )
+        run_id = created.json()["session_id"]
+        client.post(
+            f"/api/runtime/sessions/{run_id}/test-run",
+            json={
+                "worker_id": "developer",
+                "command": "pytest demo_target",
+                "exit_code": 0,
+                "passed": True,
+                "summary": "8 passed",
+            },
+        )
+        recovered = client.post(
+            f"/api/runtime/sessions/{run_id}/recover",
+            json={"summary": "Reviewer approved the patch."},
+        )
+
+    assert recovered.status_code == 202
+    by_name = {name: fields for name, fields in emitted}
+    assert by_name["swarm.tests_passed"] == {
+        "session_id": run_id,
+        "run_id": run_id,
+        "worker_id": "developer",
+        "exit_code": 0,
+        "pytest_exit_code": 0,
+        "phase": "after_fix",
+        "tests_passed": True,
+    }
+    assert by_name["swarm.recovery_complete"]["run_id"] == run_id
+    assert by_name["swarm.recovery_complete"]["phase"] == "recovery"
+
+
 def test_the_whole_demo_path_works_with_nothing_configured():
     """The end-to-end control-plane path with no DSN, no OpenAI key and no
     RunPod endpoint: deny, quarantine, taint, reassign, recover."""

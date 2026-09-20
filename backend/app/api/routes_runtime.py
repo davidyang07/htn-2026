@@ -397,8 +397,9 @@ async def complete_task(session_id: UUID, body: TaskCompleteRequest) -> RuntimeS
             "developer.patch_applied",
             f"Patch applied by {body.worker_id}",
             session_id=str(session.session_id),
+            run_id=str(session.session_id),
             worker_id=body.worker_id,
-            detail=body.detail,
+            phase="fix",
         )
     return _summary(session)
 
@@ -507,9 +508,12 @@ async def record_test_run(session_id: UUID, body: TestRunRequest) -> RuntimeSess
             "swarm.tests_passed",
             f"{body.command}: {body.summary}",
             session_id=str(session.session_id),
+            run_id=str(session.session_id),
             worker_id=body.worker_id,
             exit_code=body.exit_code,
-            summary=body.summary,
+            pytest_exit_code=body.exit_code,
+            phase="after_fix",
+            tests_passed=True,
         )
     else:
         sentry.log_event(
@@ -535,11 +539,12 @@ async def recover(session_id: UUID, body: RecoverRequest) -> RuntimeSessionSumma
     await session.recover(summary=body.summary)
     sentry.log_event(
         "swarm.recovery_complete",
-        body.summary,
+        "Swarm recovery completed",
         session_id=str(session.session_id),
+        run_id=str(session.session_id),
         attack_detected=session.attack_detected,
         tests_passed=session.tests_passed,
-        test_summary=session.test_summary,
+        phase="recovery",
     )
     return _summary(session)
 
