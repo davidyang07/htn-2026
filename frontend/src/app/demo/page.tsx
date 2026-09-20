@@ -196,7 +196,7 @@ export default function DemoPage() {
 
                 <div className="grid min-h-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
                   <ContainmentPanel incident={incident} artifacts={summary.artifacts} />
-                  <div className="flex min-h-0 max-h-[34rem] flex-col">
+                  <div className="flex min-h-0 max-h-[30rem] flex-col">
                     <NarrativeTimeline events={liveEvents} />
                   </div>
                 </div>

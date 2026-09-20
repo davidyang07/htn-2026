@@ -36,7 +36,7 @@ export function IncidentStage({
       {/* `mx-auto` rather than `justify-center`: it centres the chain when
           there is room and collapses to zero when there is not, so a stage
           wider than its container still scrolls from its left edge. */}
-      <div className="mx-auto flex min-w-max items-stretch gap-0 p-4 2xl:p-5">
+      <div className="mx-auto flex w-max items-stretch gap-0 p-4 2xl:p-5">
         {stage.columns.map((column, index) => (
           <Fragment key={column.column}>
             {index > 0 && <HandoffArrow broken={brokenBefore(stage, column)} />}
