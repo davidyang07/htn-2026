@@ -31,7 +31,7 @@ class QuarantineEvidence(EvidenceModel):
 
 class ContainmentEvidence(EvidenceModel):
     tainted_artifact_ids: tuple[str, ...] = ()
-    excluded_from_replacement_context: bool
+    excluded_from_replacement_context: bool | None = None
 
 
 class ReplacementEvidence(EvidenceModel):
