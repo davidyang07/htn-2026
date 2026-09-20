@@ -90,9 +90,11 @@ def test_the_structured_log_names_are_the_ones_the_docs_promise():
 
 
 def test_structured_logs_emit_only_safe_correlation_fields(monkeypatch):
+    from sentry_sdk import logger as sentry_logger
+
     sdk_logger = Mock()
     monkeypatch.setattr(sentry, "_enabled", True)
-    monkeypatch.setattr("sentry_sdk.logger", sdk_logger)
+    monkeypatch.setattr(sentry_logger, "info", sdk_logger.info)
 
     sentry.log_event(
         "security.tool_denied",
@@ -119,6 +121,44 @@ def test_structured_logs_emit_only_safe_correlation_fields(monkeypatch):
         },
     )
 
+
+def test_nested_telemetry_payloads_are_recursively_scrubbed(monkeypatch):
+    from sentry_sdk import logger as sentry_logger
+
+    sdk_logger = Mock()
+    monkeypatch.setattr(sentry, "_enabled", True)
+    monkeypatch.setattr(sentry_logger, "info", sdk_logger.info)
+
+    sentry.log_event(
+        "swarm.task_reassigned",
+        "replacement",
+        replacement_relationship={
+            "from_worker_id": "security-researcher",
+            "to_worker_id": "replacement-researcher",
+            "authorization": "Bearer nested-secret",
+            "prompt": "nested prompt",
+        },
+        context_artifact_ids=[
+            "repo-map",
+            {
+                "artifact_id": "trusted-analysis",
+                "content": "full repository file",
+                "api_key": "nested-key",
+            },
+        ],
+    )
+
+    attributes = sdk_logger.info.call_args.kwargs["attributes"]
+    assert attributes["replacement_relationship"] == (
+        '{"from_worker_id":"security-researcher",'
+        '"to_worker_id":"replacement-researcher"}'
+    )
+    assert attributes["context_artifact_ids"] == (
+        '["repo-map",{"artifact_id":"trusted-analysis"}]'
+    )
+    assert "secret" not in str(attributes).lower()
+    assert "prompt" not in str(attributes).lower()
+    assert "repository file" not in str(attributes).lower()
 
 def test_the_whole_demo_path_works_with_nothing_configured():
     """The end-to-end control-plane path with no DSN, no OpenAI key and no

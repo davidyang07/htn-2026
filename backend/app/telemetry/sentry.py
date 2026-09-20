@@ -13,6 +13,7 @@ Additive to, and separate from, the hand-built OTLP/JSON exporter in
 `app/telemetry/otel_export.py`, which covers the deterministic simulator.
 """
 
+import json
 import logging
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
@@ -45,10 +46,12 @@ SAFE_FIELD_NAMES = frozenset(
     {
         "artifact_id",
         "attack_detected",
+        "context_artifact_ids",
         "decision",
         "event_type",
         "exit_code",
         "fail_closed",
+        "files_written",
         "from_worker_id",
         "latency_ms",
         "model",
@@ -59,9 +62,11 @@ SAFE_FIELD_NAMES = frozenset(
         "provider",
         "pytest_exit_code",
         "quarantined_worker",
+        "replacement_relationship",
         "replaces",
         "replacement_worker_id",
         "resource_path",
+        "requested_files",
         "role",
         "rule",
         "run_id",
@@ -70,6 +75,8 @@ SAFE_FIELD_NAMES = frozenset(
         "task_id",
         "task_identifier",
         "tests_passed",
+        "tainted_artifact_ids",
+        "trusted_artifacts",
         "to_worker_id",
         "violation_type",
         "vulnerability_proven",
@@ -165,9 +172,9 @@ def log_event(name: str, message: str, **fields: Any) -> None:
         return
 
     try:
-        import sentry_sdk
+        from sentry_sdk import logger as sentry_logger
 
-        sentry_sdk.logger.info(name, attributes={"event.name": name, **safe_fields})
+        sentry_logger.info(name, attributes={"event.name": name, **safe_fields})
     except Exception:  # pragma: no cover - telemetry must never break a request
         logger.debug("Sentry log emission failed for %s", name, exc_info=True)
 
@@ -185,11 +192,50 @@ def set_tags(tags: Mapping[str, Any]) -> None:
 
 
 def _safe_fields(fields: Mapping[str, Any]) -> dict[str, Any]:
-    """Return only explicitly approved scalar correlation metadata."""
+    """Return only explicitly approved correlation metadata.
+
+    Sentry log attributes are scalar, so approved collections are recursively
+    filtered and serialized. Nested dictionaries do not get to bypass the
+    same allowlist as top-level fields.
+    """
     safe: dict[str, Any] = {}
     for key, value in fields.items():
-        if key in SAFE_FIELD_NAMES and (
-            value is None or isinstance(value, (str, int, float, bool))
-        ):
-            safe[key] = value
+        if key not in SAFE_FIELD_NAMES:
+            continue
+        scrubbed = _safe_value(value)
+        if scrubbed is not _DROP:
+            safe[key] = scrubbed
     return safe
+
+
+_DROP = object()
+
+
+def _safe_value(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, Mapping):
+        nested = {
+            key: scrubbed
+            for key, item in value.items()
+            if key in SAFE_FIELD_NAMES
+            and (scrubbed := _safe_value(item)) is not _DROP
+        }
+        return json.dumps(nested, sort_keys=True, separators=(",", ":"))
+    if isinstance(value, (list, tuple, set, frozenset)):
+        nested_values = []
+        for item in value:
+            if isinstance(item, Mapping):
+                filtered = {
+                    key: nested
+                    for key, nested_item in item.items()
+                    if key in SAFE_FIELD_NAMES
+                    and (nested := _safe_value(nested_item)) is not _DROP
+                }
+                nested_values.append(filtered)
+            else:
+                scrubbed = _safe_value(item)
+                if scrubbed is not _DROP:
+                    nested_values.append(scrubbed)
+        return json.dumps(nested_values, sort_keys=True, separators=(",", ":"))
+    return _DROP
