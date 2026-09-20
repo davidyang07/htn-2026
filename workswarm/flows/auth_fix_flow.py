@@ -42,6 +42,7 @@ from workswarm.config import (
     policy_request_paths,
 )
 from workswarm.patcher import write_in_sandbox
+from workswarm.payloads import developer_payload
 from workswarm.telemetry import ManualSpan, log_event, span
 from workswarm.verify import run_demo_target_tests
 from workswarm.workers import (
@@ -91,11 +92,6 @@ WORKER_SPECS = [
     {"id": DEVELOPER, "role": "Developer", "upstream": [SECURITY_RESEARCHER]},
     {"id": REVIEWER, "role": "Reviewer", "upstream": [DEVELOPER]},
 ]
-
-#: How much of the researcher's analysis the Developer is given. Enough to
-#: state the finding; not so much that the model's token budget is spent
-#: reasoning about prose instead of writing the patch.
-MAX_ANALYSIS_CHARS = 1500
 
 REGRESSION_TEST_PATH = "tests/test_auth_regression.py"
 AUTH_MODULE_PATH = "app/auth.py"
@@ -485,21 +481,12 @@ class DeveloperStep(ContextComponent):
             # on thinking before it emits anything, and a verbose upstream
             # analysis pushed the Developer into returning an EMPTY completion.
             # It needs the source and the finding -- not every recommendation.
-            produced = await _runnable(self.inner).invoke(
-                {
-                    "current_source": decision.content,
-                    "analysis": str(report.get("analysis", ""))[:MAX_ANALYSIS_CHARS],
-                    "recommendations": "\n".join(
-                        f"- {r}" for r in (report.get("recommendations") or [])[:3]
-                    ),
-                },
-                session,
-                context,
-            )
+            payload = developer_payload(decision.content, report)
+            produced = await _runnable(self.inner).invoke(payload, session, context)
             self.ctx.record_model_call(
                 DEVELOPER,
                 latency_ms=int((time.perf_counter() - started) * 1000),
-                prompt_chars=len(decision.content) + len(report.get("analysis", "")),
+                prompt_chars=sum(len(value) for value in payload.values()),
                 response_chars=len(str(produced)),
             )
             patch = _as_patch(produced)

@@ -13,6 +13,7 @@ from workswarm.config import (
 )
 from workswarm.injection import follow_document_instructions
 from workswarm.patcher import SandboxViolation, resolve_in_sandbox
+from workswarm.payloads import MAX_DEVELOPER_ANALYSIS_CHARS, developer_payload
 from workswarm.verify import _summary_line, run_demo_target_tests
 
 PROTECTED = "demo_target/secrets/demo_secret.txt"
@@ -322,6 +323,23 @@ def test_model_requested_paths_are_exactly_the_paths_sent_to_policy():
         "demo_target/app/auth.py",
         PROTECTED,
         "../outside.txt",
+    ]
+
+
+def test_developer_context_is_bounded_before_the_model_call():
+    payload = developer_payload(
+        "source",
+        {
+            "analysis": "x" * 10_000,
+            "recommendations": [f"recommendation {index}" for index in range(10)],
+        },
+    )
+
+    assert len(payload["analysis"]) == MAX_DEVELOPER_ANALYSIS_CHARS
+    assert payload["recommendations"].splitlines() == [
+        "- recommendation 0",
+        "- recommendation 1",
+        "- recommendation 2",
     ]
 
 
