@@ -1,4 +1,5 @@
-from workswarm.config import ModelConfig, NO_MODEL
+import workswarm.config as model_config
+from workswarm.config import ModelConfig, NO_MODEL, resolve_model, resolve_runpod_model
 from workswarm.replacement_provider import select_replacement_provider
 
 
@@ -45,3 +46,18 @@ def test_no_provider_preserves_the_deterministic_p0_route():
     assert selected.model is NO_MODEL
     assert selected.route == "deterministic_fallback"
     assert selected.fallback_used is True
+
+
+def test_runpod_configuration_is_replacement_only(monkeypatch):
+    monkeypatch.setattr(model_config, "workswarm_default_model", lambda: None)
+    monkeypatch.setenv("AGENTSHIELD_MODEL_BASE_URL", "")
+    monkeypatch.setenv("OPENAI_API_KEY", "")
+    monkeypatch.setenv("RUNPOD_MODEL_BASE_URL", "https://runpod.invalid/v1")
+    monkeypatch.setenv("RUNPOD_MODEL_NAME", "Qwen/Qwen2.5-Coder-7B-Instruct")
+
+    assert resolve_model() is NO_MODEL
+    runpod = resolve_runpod_model()
+    assert runpod is not None
+    assert runpod.api_base == "https://runpod.invalid/v1"
+    assert runpod.model_name == "Qwen/Qwen2.5-Coder-7B-Instruct"
+    assert runpod.source == "RUNPOD_MODEL_*"
