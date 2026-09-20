@@ -408,11 +408,9 @@ fallback; nothing in the core demo changes.
 
 # P1 — after the demo works end to end
 
-- **RunPod replacement worker.** Now one env var away: `RUNPOD_MODEL_*` settings exist in
-  `app/config.py`, and `workswarm/config.py::resolve_model()` already resolves them into the
-  OpenAI-compatible client the workers use. What is left is per-worker model selection — today
-  every worker shares one endpoint, and the story wants the *Replacement* Researcher specifically
-  on self-hosted Qwen while the original ran on the sponsor model. Must degrade when unreachable.
+- **RunPod replacement worker — Done.** `RUNPOD_MODEL_*` is replacement-only, verified before
+  selection, and records the provider that actually answered. Missing, unhealthy, timed-out, or
+  unreachable endpoints fall back to the normal sponsor route and never block the P0 workflow.
 - **AgentShield as a visible third-party Sentinel agent in the swarm graph** — if trivial. The
   typed graph already has `NodeType.SENTINEL` with its own shape and size in
   `lib/graph/model.ts::NODE_SHAPE`.

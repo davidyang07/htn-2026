@@ -64,13 +64,14 @@ That is the whole install. Verified working with:
 
 ### Model credentials (manual, never committed)
 
-The workers run on whatever OpenAI-compatible endpoint you configure in the
-repository-root `.env` (git-ignored). First one set wins:
+The normal P0 workers use the first configured sponsor route: explicit
+`AGENTSHIELD_MODEL_*`, WorkSwarm's own `config.yaml`, then `OPENAI_API_KEY`.
+RunPod is resolved separately for the Replacement Researcher only:
 
 | Variable group | Use |
 |---|---|
 | `AGENTSHIELD_MODEL_BASE_URL` / `_API_KEY` / `_NAME` / `_PROVIDER` | The front door. OpenAI, a RunPod vLLM pod, Ollama (`http://localhost:11434/v1`), LM Studio, a sponsor gateway. |
-| `RUNPOD_MODEL_BASE_URL` / `_API_KEY` / `_NAME` | The P1 self-hosted-Qwen story (`docs/PROJECT.md` §11). |
+| `RUNPOD_MODEL_BASE_URL` / `_API_KEY` / `_NAME` | Optional Replacement Researcher route; missing or unhealthy endpoints fall back to the sponsor route. |
 | `OPENAI_API_KEY` (+ optional `OPENAI_BASE_URL`, `OPENAI_MODEL`) | Plain OpenAI. |
 | *(none set)* | The workers run as **deterministic stand-ins**. |
 

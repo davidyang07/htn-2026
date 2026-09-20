@@ -181,11 +181,13 @@ Verified against the environment this was built in. Mirrored, with more detail, 
    server/gateway/channels layer; the demo does not need it. No shim, no rename (§2 rule 2).
 
 3. **Configure the model credentials** — manual, outside this repository, in the git-ignored
-   repo-root `.env`. First group set wins:
+   repo-root `.env`. Normal-worker resolution checks:
    `AGENTSHIELD_MODEL_BASE_URL`/`_API_KEY`/`_NAME`/`_PROVIDER` (any OpenAI-compatible endpoint),
-   then `RUNPOD_MODEL_*`, then `OPENAI_API_KEY`. With none set the workers run as deterministic
-   stand-ins and every worker, event and screen says so. `.env.example` lists the keys with empty
-   placeholders; **no credential of any kind belongs in this repository**.
+   then WorkSwarm's own `config.yaml`, then `OPENAI_API_KEY`. `RUNPOD_MODEL_*` is resolved
+   separately for the Replacement Researcher and falls back to that normal sponsor route when
+   absent or unhealthy. With no normal provider the workers run as deterministic stand-ins and
+   every worker, event and screen says so. `.env.example` lists the keys with empty placeholders;
+   **no credential of any kind belongs in this repository**.
 
 4. **Verify the install** before involving AgentShield:
 

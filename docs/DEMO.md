@@ -298,13 +298,14 @@ for e in json.load(sys.stdin)['events']:
 
 ## 7. Model-backed vs. deterministic workers
 
-The reasoning workers run on whatever OpenAI-compatible endpoint is configured
-in the repo-root `.env`. First group set wins:
+The normal reasoning workers use the first configured sponsor route:
+`AGENTSHIELD_MODEL_*`, WorkSwarm's own `config.yaml`, then `OPENAI_API_KEY`.
+RunPod is selected separately for the Replacement Researcher only:
 
 | Variables | Use |
 |---|---|
 | `AGENTSHIELD_MODEL_BASE_URL` / `_API_KEY` / `_NAME` / `_PROVIDER` | The front door: OpenAI, a RunPod vLLM pod, Ollama, LM Studio, a sponsor gateway |
-| `RUNPOD_MODEL_BASE_URL` / `_API_KEY` / `_NAME` | The P1 self-hosted-Qwen story |
+| `RUNPOD_MODEL_BASE_URL` / `_API_KEY` / `_NAME` | Optional replacement-only RunPod route; falls back to the sponsor route |
 | `OPENAI_API_KEY` | Plain OpenAI |
 | *(none)* | Deterministic stand-ins |
 
